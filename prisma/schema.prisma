@@ -1,0 +1,588 @@
+// Schema do Cortano — Plataforma SaaS Multi-tenant para Barbearias
+// Estratégia multi-tenant: shared database + discriminator column (tenantId)
+// Toda tabela de domínio carrega tenantId apontando para Tenant (a barbearia).
+//
+// ETAPA 1 — FUNDAÇÃO (este arquivo): tenants, RBAC, planos/limites, status,
+// assinatura SaaS, auditoria. As demais entidades operacionais (agenda,
+// clientes, loja etc.) seguem o mesmo padrão de isolamento por tenantId e
+// serão expandidas nas próximas etapas conforme o roadmap.
+
+generator client {
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "rhel-openssl-3.0.x"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ---------------------------------------------------------------------------
+// TENANT / SUPER ADMIN
+// ---------------------------------------------------------------------------
+
+/// Cada barbearia é um Tenant. Tudo no sistema pendura a partir daqui.
+/// Campos e status seguem a seção 5/7 da arquitetura Cortano.
+model Tenant {
+  id            String       @id @default(cuid())
+  slug          String       @unique // usado em barbearia1.cortano.com ou /barbearia/barbearia1
+  nome          String
+  razaoSocial   String?
+  cnpj          String?
+  logoUrl       String?
+  telefone      String?
+  email         String?
+  endereco      String?
+  responsavelNome String?
+
+  // Assinatura da barbearia com o Cortano (camada de receita B2B — seção 10)
+  plano         PlanoSaas?   @relation(fields: [planoId], references: [id])
+  planoId       String?
+  status        StatusTenant @default(TRIAL)
+  dataInicio    DateTime     @default(now())
+  dataVencimento DateTime?
+
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+
+  usuarios        Usuario[]
+  barbeiros       Barbeiro[]
+  servicos        Servico[]
+  clientes        Cliente[]
+  agendamentos    Agendamento[]
+  planosCliente   PlanoCliente[]
+  assinaturas     AssinaturaCliente[]
+  produtos        Produto[]
+  pedidos         Pedido[]
+  avaliacoes      Avaliacao[]
+  assinaturaSaas  AssinaturaSaas?
+  auditLogs       AuditLog[]
+
+  @@map("tenants")
+}
+
+/// Status global do tenant — seção 5 do documento de arquitetura.
+enum StatusTenant {
+  TRIAL
+  ACTIVE
+  PAYMENT_PENDING
+  SUSPENDED
+  CANCELLED
+}
+
+/// Planos que a PLATAFORMA (Cortano) vende para as barbearias (B2B SaaS).
+/// Limites nunca devem ser hardcoded no frontend — sempre validados no backend
+/// contra estes campos (seção 8 e 9).
+model PlanoSaas {
+  id                    String   @id @default(cuid())
+  nome                  String // Start, Pro, Premium
+  precoMensal           Decimal  @db.Decimal(10, 2)
+  cicloCobranca         CicloCobranca @default(MENSAL)
+
+  maxBarbeiros          Int? // null = ilimitado
+  maxUsuarios           Int?
+  maxClientes           Int?
+  maxProdutos           Int?
+
+  recursos              Json? // feature flags: loja habilitada, whatsapp, relatorios_avancados, etc.
+  ativo                 Boolean  @default(true)
+
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  tenants               Tenant[]
+  assinaturas           AssinaturaSaas[]
+
+  @@map("planos_saas")
+}
+
+enum CicloCobranca {
+  MENSAL
+  ANUAL
+}
+
+/// Assinatura SaaS: Barbearia → Cortano (seção 10).
+/// Entidade e fluxo financeiro completamente separados da AssinaturaCliente
+/// (Cliente → Barbearia), conforme seção 22 (separação financeira).
+model AssinaturaSaas {
+  id              String   @id @default(cuid())
+  tenantId        String   @unique
+  tenant          Tenant   @relation(fields: [tenantId], references: [id])
+  planoId         String
+  plano           PlanoSaas @relation(fields: [planoId], references: [id])
+
+  status          StatusTenant @default(TRIAL)
+  valor           Decimal  @db.Decimal(10, 2)
+  ciclo           CicloCobranca @default(MENSAL)
+
+  inicio          DateTime @default(now())
+  trialFim        DateTime?
+  proximaCobranca DateTime?
+  ultimoPagamento DateTime?
+  canceladoEm     DateTime?
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  pagamentos      PagamentoSaas[]
+
+  @@map("assinaturas_saas")
+}
+
+/// Histórico de pagamentos da assinatura SaaS (Barbearia → Cortano).
+model PagamentoSaas {
+  id              String   @id @default(cuid())
+  assinaturaId    String
+  assinatura      AssinaturaSaas @relation(fields: [assinaturaId], references: [id])
+  valor           Decimal  @db.Decimal(10, 2)
+  status          StatusCobranca @default(PENDENTE)
+  dataVencimento  DateTime
+  dataPagamento   DateTime?
+  gatewayChargeId String?
+
+  createdAt       DateTime @default(now())
+
+  @@map("pagamentos_saas")
+}
+
+// ---------------------------------------------------------------------------
+// USUÁRIOS E AUTENTICAÇÃO
+// ---------------------------------------------------------------------------
+
+/// Usuário genérico de login (dono/admin da barbearia, recepcionista, barbeiro, cliente)
+/// NextAuth pode usar este model diretamente ou um adapter próprio.
+model Usuario {
+  id            String    @id @default(cuid())
+  tenantId      String? // null para Super Admin da plataforma
+  tenant        Tenant?   @relation(fields: [tenantId], references: [id])
+
+  nome          String
+  email         String
+  senhaHash     String?
+  telefone      String?
+  papel         PapelUsuario @default(CLIENTE)
+  // Permissões finas para GERENTE (seção 4.3: agenda, clientes, equipe,
+  // serviços, financeiro, relatórios). Ex: { "agenda": true, "financeiro": false }
+  permissoes    Json?
+
+  emailVerificado DateTime?
+  imagemUrl       String?
+
+  // Se este usuário é também um barbeiro ou cliente, relação 1:1
+  barbeiro      Barbeiro?
+  cliente       Cliente?
+
+  ativo         Boolean   @default(true)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@unique([tenantId, email])
+  @@map("usuarios")
+}
+
+/// Papéis de acesso — seção 4 do documento de arquitetura.
+/// PROPRIETARIO e GERENTE têm acesso de gestão (GERENTE com permissões
+/// configuráveis pelo proprietário — ver campo `permissoes` em Usuario).
+enum PapelUsuario {
+  SUPER_ADMIN     // 4.1 — acesso global à plataforma
+  PROPRIETARIO    // 4.2 — acesso completo ao próprio tenant
+  GERENTE         // 4.3 — permissões configuráveis
+  BARBEIRO        // 4.4 — acesso operacional
+  ATENDENTE       // 4.5 — agenda, clientes, agendamentos, serviços
+  CLIENTE         // 4.6 — acesso exclusivo aos próprios dados
+}
+
+// ---------------------------------------------------------------------------
+// BARBEIROS
+// ---------------------------------------------------------------------------
+
+model Barbeiro {
+  id            String   @id @default(cuid())
+  tenantId      String
+  tenant        Tenant   @relation(fields: [tenantId], references: [id])
+
+  usuarioId     String?  @unique
+  usuario       Usuario? @relation(fields: [usuarioId], references: [id])
+
+  nome          String
+  fotoUrl       String?
+  especialidades String[] @default([])
+  comissaoPadrao Decimal @db.Decimal(5, 2) @default(0) // percentual, ex: 40.00 = 40%
+
+  ativo         Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  horarios      HorarioTrabalho[]
+  servicos      ServicoBarbeiro[]
+  agendamentos  Agendamento[]
+  avaliacoes    Avaliacao[]
+
+  @@index([tenantId])
+  @@map("barbeiros")
+}
+
+/// Grade de horários de trabalho do barbeiro por dia da semana
+model HorarioTrabalho {
+  id          String   @id @default(cuid())
+  barbeiroId  String
+  barbeiro    Barbeiro @relation(fields: [barbeiroId], references: [id], onDelete: Cascade)
+
+  diaSemana   Int // 0 = domingo ... 6 = sábado
+  horaInicio  String // "09:00"
+  horaFim     String // "18:00"
+
+  @@index([barbeiroId])
+  @@map("horarios_trabalho")
+}
+
+// ---------------------------------------------------------------------------
+// SERVIÇOS
+// ---------------------------------------------------------------------------
+
+model Servico {
+  id            String   @id @default(cuid())
+  tenantId      String
+  tenant        Tenant   @relation(fields: [tenantId], references: [id])
+
+  nome          String
+  descricao     String?
+  fotoUrl       String?
+  preco         Decimal  @db.Decimal(10, 2)
+  duracaoMin    Int // duração em minutos
+
+  ativo         Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  barbeiros     ServicoBarbeiro[]
+  agendamentoItens AgendamentoServico[]
+  planoItens    PlanoClienteServico[]
+
+  @@index([tenantId])
+  @@map("servicos")
+}
+
+/// Relação N:N entre serviço e barbeiro (quais barbeiros fazem qual serviço + comissão específica)
+model ServicoBarbeiro {
+  id          String   @id @default(cuid())
+  servicoId   String
+  servico     Servico  @relation(fields: [servicoId], references: [id], onDelete: Cascade)
+  barbeiroId  String
+  barbeiro    Barbeiro @relation(fields: [barbeiroId], references: [id], onDelete: Cascade)
+  comissao    Decimal? @db.Decimal(5, 2) // sobrescreve comissaoPadrao do barbeiro, se definido
+
+  @@unique([servicoId, barbeiroId])
+  @@map("servicos_barbeiros")
+}
+
+// ---------------------------------------------------------------------------
+// CLIENTES
+// ---------------------------------------------------------------------------
+
+model Cliente {
+  id            String   @id @default(cuid())
+  tenantId      String
+  tenant        Tenant   @relation(fields: [tenantId], references: [id])
+
+  usuarioId     String?  @unique
+  usuario       Usuario? @relation(fields: [usuarioId], references: [id])
+
+  nome          String
+  telefone      String?
+  email         String?
+  dataNascimento DateTime?
+  observacoes   String?
+  barbeiroFavoritoId String?
+
+  ativo         Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  agendamentos  Agendamento[]
+  assinatura    AssinaturaCliente?
+  pedidos       Pedido[]
+  avaliacoes    Avaliacao[]
+
+  @@index([tenantId])
+  @@map("clientes")
+}
+
+// ---------------------------------------------------------------------------
+// AGENDA / AGENDAMENTOS
+// ---------------------------------------------------------------------------
+
+model Agendamento {
+  id            String   @id @default(cuid())
+  tenantId      String
+  tenant        Tenant   @relation(fields: [tenantId], references: [id])
+
+  clienteId     String
+  cliente       Cliente  @relation(fields: [clienteId], references: [id])
+  barbeiroId    String
+  barbeiro      Barbeiro @relation(fields: [barbeiroId], references: [id])
+
+  dataHoraInicio DateTime
+  dataHoraFim    DateTime
+  status        StatusAgendamento @default(AGENDADO)
+  origem        OrigemAgendamento @default(PAINEL)
+
+  // Se este agendamento consumiu uma cota de assinatura, referencia aqui
+  assinaturaId  String?
+  assinatura    AssinaturaCliente? @relation(fields: [assinaturaId], references: [id])
+
+  observacoes   String?
+  valorTotal    Decimal  @db.Decimal(10, 2) @default(0)
+
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  servicos      AgendamentoServico[]
+  avaliacao     Avaliacao?
+
+  @@index([tenantId, dataHoraInicio])
+  @@index([barbeiroId, dataHoraInicio])
+  @@map("agendamentos")
+}
+
+enum StatusAgendamento {
+  AGENDADO
+  CONFIRMADO
+  ATENDIDO
+  CANCELADO
+  FALTOU
+}
+
+enum OrigemAgendamento {
+  PAINEL
+  APP_CLIENTE
+  WHATSAPP
+}
+
+/// Um agendamento pode ter múltiplos serviços (ex: corte + barba)
+model AgendamentoServico {
+  id            String   @id @default(cuid())
+  agendamentoId String
+  agendamento   Agendamento @relation(fields: [agendamentoId], references: [id], onDelete: Cascade)
+  servicoId     String
+  servico       Servico  @relation(fields: [servicoId], references: [id])
+  precoCobrado  Decimal  @db.Decimal(10, 2)
+
+  @@map("agendamento_servicos")
+}
+
+// ---------------------------------------------------------------------------
+// PLANOS RECORRENTES (assinaturas que a barbearia vende ao cliente final)
+// ---------------------------------------------------------------------------
+
+model PlanoCliente {
+  id            String   @id @default(cuid())
+  tenantId      String
+  tenant        Tenant   @relation(fields: [tenantId], references: [id])
+
+  nome          String // "Plano Corte", "Plano Corte + Barba", "Plano Premium"
+  descricao     String?
+  precoMensal   Decimal  @db.Decimal(10, 2)
+  ilimitado     Boolean  @default(false)
+
+  ativo         Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  servicosInclusos PlanoClienteServico[]
+  assinaturas   AssinaturaCliente[]
+
+  @@index([tenantId])
+  @@map("planos_cliente")
+}
+
+/// Quantidade de cada serviço incluída no plano (ex: 4 cortes + 4 barbas por mês)
+model PlanoClienteServico {
+  id            String   @id @default(cuid())
+  planoId       String
+  plano         PlanoCliente @relation(fields: [planoId], references: [id], onDelete: Cascade)
+  servicoId     String
+  servico       Servico  @relation(fields: [servicoId], references: [id])
+  quantidadeMes Int // quantas vezes por mês esse serviço está incluso
+
+  @@unique([planoId, servicoId])
+  @@map("plano_cliente_servicos")
+}
+
+/// Assinatura ativa de um cliente a um plano
+model AssinaturaCliente {
+  id            String   @id @default(cuid())
+  tenantId      String
+  tenant        Tenant   @relation(fields: [tenantId], references: [id])
+
+  clienteId     String   @unique
+  cliente       Cliente  @relation(fields: [clienteId], references: [id])
+  planoId       String
+  plano         PlanoCliente @relation(fields: [planoId], references: [id])
+
+  status        StatusAssinaturaCliente @default(ATIVA)
+  dataInicio    DateTime @default(now())
+  proximaCobranca DateTime
+  ultimaCobranca  DateTime?
+
+  // Referência ao gateway de pagamento (Stripe subscription id, etc.)
+  gatewayCustomerId     String?
+  gatewaySubscriptionId String?
+
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  agendamentos  Agendamento[]
+  cobrancas     Cobranca[]
+
+  @@index([tenantId])
+  @@map("assinaturas_cliente")
+}
+
+enum StatusAssinaturaCliente {
+  ATIVA
+  PAUSADA
+  CANCELADA
+  INADIMPLENTE
+}
+
+model Cobranca {
+  id            String   @id @default(cuid())
+  assinaturaId  String
+  assinatura    AssinaturaCliente @relation(fields: [assinaturaId], references: [id])
+  valor         Decimal  @db.Decimal(10, 2)
+  status        StatusCobranca @default(PENDENTE)
+  dataVencimento DateTime
+  dataPagamento  DateTime?
+  gatewayChargeId String?
+
+  createdAt     DateTime @default(now())
+
+  @@map("cobrancas")
+}
+
+enum StatusCobranca {
+  PENDENTE
+  PAGA
+  FALHOU
+  ESTORNADA
+}
+
+// ---------------------------------------------------------------------------
+// LOJA (Fase 3)
+// ---------------------------------------------------------------------------
+
+model Produto {
+  id            String   @id @default(cuid())
+  tenantId      String
+  tenant        Tenant   @relation(fields: [tenantId], references: [id])
+
+  nome          String
+  descricao     String?
+  fotoUrl       String?
+  categoria     String
+  sku           String
+  preco         Decimal  @db.Decimal(10, 2)
+  estoque       Int      @default(0)
+  ativo         Boolean  @default(true)
+
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  itensPedido   ItemPedido[]
+
+  @@unique([tenantId, sku])
+  @@index([tenantId])
+  @@map("produtos")
+}
+
+model Pedido {
+  id            String   @id @default(cuid())
+  tenantId      String
+  tenant        Tenant   @relation(fields: [tenantId], references: [id])
+
+  clienteId     String
+  cliente       Cliente  @relation(fields: [clienteId], references: [id])
+
+  status        StatusPedido @default(NOVO)
+  valorTotal    Decimal  @db.Decimal(10, 2)
+
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  itens         ItemPedido[]
+
+  @@index([tenantId])
+  @@map("pedidos")
+}
+
+enum StatusPedido {
+  NOVO
+  PAGO
+  PREPARANDO
+  PRONTO_RETIRADA
+  ENTREGUE
+  CANCELADO
+}
+
+model ItemPedido {
+  id          String  @id @default(cuid())
+  pedidoId    String
+  pedido      Pedido  @relation(fields: [pedidoId], references: [id], onDelete: Cascade)
+  produtoId   String
+  produto     Produto @relation(fields: [produtoId], references: [id])
+  quantidade  Int
+  precoUnitario Decimal @db.Decimal(10, 2)
+
+  @@map("itens_pedido")
+}
+
+// ---------------------------------------------------------------------------
+// AVALIAÇÕES (Fase 4)
+// ---------------------------------------------------------------------------
+
+// ---------------------------------------------------------------------------
+// AUDITORIA (seção 21) — registrar ações críticas
+// ---------------------------------------------------------------------------
+
+model AuditLog {
+  id          String   @id @default(cuid())
+  actorId     String // id do Usuario que executou a ação
+  tenantId    String? // null para ações globais do Super Admin
+  tenant      Tenant?  @relation(fields: [tenantId], references: [id])
+
+  action      String // ex: "tenant.suspend", "plano.alterar", "permissao.alterar"
+  entityType  String // ex: "Tenant", "AssinaturaSaas", "Usuario"
+  entityId    String
+  metadata    Json? // payload com antes/depois, motivo, etc.
+
+  createdAt   DateTime @default(now())
+
+  @@index([tenantId])
+  @@index([actorId])
+  @@index([entityType, entityId])
+  @@map("audit_logs")
+}
+
+model Avaliacao {
+  id            String   @id @default(cuid())
+  tenantId      String
+  tenant        Tenant   @relation(fields: [tenantId], references: [id])
+
+  agendamentoId String   @unique
+  agendamento   Agendamento @relation(fields: [agendamentoId], references: [id])
+  clienteId     String
+  cliente       Cliente  @relation(fields: [clienteId], references: [id])
+  barbeiroId    String
+  barbeiro      Barbeiro @relation(fields: [barbeiroId], references: [id])
+
+  notaBarbeiro    Int // 1-5
+  notaServico     Int // 1-5
+  notaExperiencia Int // 1-5
+  comentario      String?
+
+  createdAt     DateTime @default(now())
+
+  @@index([tenantId])
+  @@map("avaliacoes")
+}
