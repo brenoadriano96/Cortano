@@ -1,6 +1,9 @@
 import { prisma } from "@/lib/prisma";
 import { NextRequest, NextResponse } from "next/server";
 import { PapelUsuario } from "@prisma/client";
+import bcrypt from "bcryptjs";
+
+const SENHA_PADRAO_SEED = "cortano123";
 
 /**
  * Rota TEMPORÁRIA para popular o banco com dados de teste sem precisar de
@@ -33,6 +36,8 @@ export async function GET(req: NextRequest) {
   const logs: string[] = [];
 
   try {
+    const senhaHash = await bcrypt.hash(SENHA_PADRAO_SEED, 10);
+
     // 1. Plano SaaS
     const planoPro = await prisma.planoSaas.upsert({
       where: { id: "plano-saas-pro-seed" },
@@ -93,56 +98,66 @@ export async function GET(req: NextRequest) {
           tenantId: null,
           nome: "Admin Cortano",
           email: "admin@cortano.com",
+          senhaHash,
           papel: PapelUsuario.SUPER_ADMIN,
         },
       });
+    } else if (!superAdminExistente.senhaHash) {
+      await prisma.usuario.update({
+        where: { id: superAdminExistente.id },
+        data: { senhaHash },
+      });
     }
-    logs.push("Super Admin: admin@cortano.com");
+    logs.push(`Super Admin: admin@cortano.com (senha: ${SENHA_PADRAO_SEED})`);
 
     await prisma.usuario.upsert({
       where: { tenantId_email: { tenantId: tenant.id, email: "proprietario@barbeariamodelo.com" } },
-      update: {},
+      update: { senhaHash },
       create: {
         tenantId: tenant.id,
         nome: "João Proprietário",
         email: "proprietario@barbeariamodelo.com",
+        senhaHash,
         papel: PapelUsuario.PROPRIETARIO,
       },
     });
 
     const usuarioBarbeiro1 = await prisma.usuario.upsert({
       where: { tenantId_email: { tenantId: tenant.id, email: "carlos@barbeariamodelo.com" } },
-      update: {},
+      update: { senhaHash },
       create: {
         tenantId: tenant.id,
         nome: "Carlos Barbeiro",
         email: "carlos@barbeariamodelo.com",
+        senhaHash,
         papel: PapelUsuario.BARBEIRO,
       },
     });
 
     const usuarioBarbeiro2 = await prisma.usuario.upsert({
       where: { tenantId_email: { tenantId: tenant.id, email: "pedro@barbeariamodelo.com" } },
-      update: {},
+      update: { senhaHash },
       create: {
         tenantId: tenant.id,
         nome: "Pedro Barbeiro",
         email: "pedro@barbeariamodelo.com",
+        senhaHash,
         papel: PapelUsuario.BARBEIRO,
       },
     });
 
     await prisma.usuario.upsert({
       where: { tenantId_email: { tenantId: tenant.id, email: "atendente@barbeariamodelo.com" } },
-      update: {},
+      update: { senhaHash },
       create: {
         tenantId: tenant.id,
         nome: "Ana Atendente",
         email: "atendente@barbeariamodelo.com",
+        senhaHash,
         papel: PapelUsuario.ATENDENTE,
       },
     });
-    logs.push("Equipe da barbearia criada (proprietário, 2 barbeiros, atendente)");
+    logs.push(`Equipe da barbearia criada — todos com senha: ${SENHA_PADRAO_SEED}`);
 
     // 4. Barbeiros
     const barbeiro1 = await prisma.barbeiro.upsert({
