@@ -3,6 +3,7 @@ import Credentials from "next-auth/providers/credentials";
 import { prisma } from "@/lib/prisma";
 import bcrypt from "bcryptjs";
 import { z } from "zod";
+import { PapelUsuario } from "@prisma/client";
 
 const credenciaisSchema = z.object({
   email: z.string().email(),
@@ -68,7 +69,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     async session({ session, token }) {
       if (session.user) {
         session.user.id = token.sub!;
-        session.user.papel = token.papel as string;
+        session.user.papel = token.papel as PapelUsuario;
         session.user.tenantId = token.tenantId as string | null;
       }
       return session;
