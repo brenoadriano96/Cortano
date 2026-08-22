@@ -11,7 +11,14 @@ export function middleware(req: NextRequest) {
   const currentHost = hostname.replace(`.${ROOT_DOMAIN}`, "");
 
   // Landing page / super admin: acesso direto pelo domínio raiz
-  if (hostname === ROOT_DOMAIN || hostname === `www.${ROOT_DOMAIN}`) {
+  // (cobre também o caso de ROOT_DOMAIN não configurado corretamente:
+  // se currentHost === hostname, é porque nenhum subdomínio foi removido,
+  // ou seja, estamos no domínio raiz mesmo)
+  if (
+    hostname === ROOT_DOMAIN ||
+    hostname === `www.${ROOT_DOMAIN}` ||
+    currentHost === hostname
+  ) {
     return NextResponse.next();
   }
 
