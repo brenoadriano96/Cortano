@@ -12,6 +12,10 @@ const credenciaisSchema = z.object({
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
   session: { strategy: "jwt" },
+  // Necessário fora da Vercel (Netlify, etc.): o Auth.js só confia no host
+  // da requisição automaticamente na Vercel. Sem isso, todo login falha
+  // com "There was a problem with the server configuration".
+  trustHost: true,
   pages: {
     signIn: "/login",
   },
