@@ -1,0 +1,84 @@
+"use server";
+
+import { prisma } from "@/lib/prisma";
+import { verificarLimitePlano } from "@/lib/planos";
+import { revalidatePath } from "next/cache";
+import { PapelUsuario } from "@prisma/client";
+import bcrypt from "bcryptjs";
+import { z } from "zod";
+
+const barbeiroSchema = z.object({
+  nome: z.string().min(2, "Nome muito curto"),
+  email: z.string().email("E-mail inválido"),
+  comissaoPadrao: z.coerce.number().min(0).max(100).default(0),
+  servicoIds: z.array(z.string()).optional().default([]),
+});
+
+export type EstadoForm = { erro?: string } | undefined;
+
+const SENHA_PADRAO_NOVO_BARBEIRO = "cortano123";
+
+export async function criarBarbeiro(
+  tenantId: string,
+  slug: string,
+  _estado: EstadoForm,
+  formData: FormData
+): Promise<EstadoForm> {
+  const parsed = barbeiroSchema.safeParse({
+    nome: formData.get("nome"),
+    email: formData.get("email"),
+    comissaoPadrao: formData.get("comissaoPadrao") || 0,
+    servicoIds: formData.getAll("servicoIds"),
+  });
+  if (!parsed.success) {
+    return { erro: parsed.error.issues[0]?.message ?? "Dados inválidos" };
+  }
+
+  // Seção 9: checar limite do plano antes de criar
+  const limite = await verificarLimitePlano(tenantId, "barbeiros");
+  if (!limite.permitido) {
+    return { erro: limite.mensagem };
+  }
+
+  const emailExistente = await prisma.usuario.findFirst({
+    where: { tenantId, email: parsed.data.email },
+  });
+  if (emailExistente) {
+    return { erro: "Já existe um usuário com este e-mail nesta barbearia." };
+  }
+
+  const senhaHash = await bcrypt.hash(SENHA_PADRAO_NOVO_BARBEIRO, 10);
+
+  const usuario = await prisma.usuario.create({
+    data: {
+      tenantId,
+      nome: parsed.data.nome,
+      email: parsed.data.email,
+      senhaHash,
+      papel: PapelUsuario.BARBEIRO,
+    },
+  });
+
+  await prisma.barbeiro.create({
+    data: {
+      tenantId,
+      usuarioId: usuario.id,
+      nome: parsed.data.nome,
+      comissaoPadrao: parsed.data.comissaoPadrao,
+      servicos: {
+        create: parsed.data.servicoIds.map((servicoId) => ({ servicoId })),
+      },
+    },
+  });
+
+  revalidatePath(`/barbearia/${slug}/barbeiros`);
+  return undefined;
+}
+
+export async function inativarBarbeiro(tenantId: string, slug: string, barbeiroId: string) {
+  await prisma.barbeiro.updateMany({
+    where: { id: barbeiroId, tenantId },
+    data: { ativo: false },
+  });
+  revalidatePath(`/barbearia/${slug}/barbeiros`);
+}
