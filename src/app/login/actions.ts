@@ -1,17 +1,15 @@
 "use server";
 
-import { signIn, auth } from "@/auth";
+import { signIn } from "@/auth";
 import { AuthError } from "next-auth";
-import { redirect } from "next/navigation";
-import { prisma } from "@/lib/prisma";
 
 export type EstadoLogin = { erro?: string } | undefined;
 
 /**
- * Autentica o usuário e redireciona conforme o papel (seção 23):
- * - SUPER_ADMIN -> /admin
- * - PROPRIETARIO/GERENTE/BARBEIRO/ATENDENTE -> /barbearia/[slug]/dashboard
- * - CLIENTE -> /barbearia/[slug]/cliente/inicio
+ * Autentica o usuário. O redirecionamento por papel (seção 23) acontece
+ * em /post-login, porque a sessão só fica disponível de forma confiável
+ * na PRÓXIMA requisição após o signIn — tentar ler auth() na mesma
+ * execução do signIn (mesmo com redirect: false) retorna sessão vazia.
  */
 export async function autenticar(
   _estadoAnterior: EstadoLogin,
@@ -21,41 +19,23 @@ export async function autenticar(
     await signIn("credentials", {
       email: formData.get("email"),
       senha: formData.get("senha"),
-      redirect: false,
+      redirectTo: "/post-login",
     });
   } catch (error) {
+    // NEXT_REDIRECT não é um erro de fato — é como o Next.js sinaliza o
+    // redirecionamento bem-sucedido do signIn. Deixa propagar normalmente.
+    if (error && typeof error === "object" && "digest" in error) {
+      const digest = (error as { digest?: string }).digest;
+      if (typeof digest === "string" && digest.startsWith("NEXT_REDIRECT")) {
+        throw error;
+      }
+    }
     if (error instanceof AuthError) {
       return { erro: "E-mail ou senha inválidos." };
     }
     throw error;
   }
-
-  const session = await auth();
-  if (!session?.user) {
-    return { erro: "Não foi possível autenticar. Tente novamente." };
-  }
-
-  if (session.user.papel === "SUPER_ADMIN") {
-    redirect("/admin");
-  }
-
-  if (!session.user.tenantId) {
-    return { erro: "Usuário sem barbearia associada." };
-  }
-
-  const tenant = await prisma.tenant.findUnique({
-    where: { id: session.user.tenantId },
-    select: { slug: true },
-  });
-  if (!tenant) {
-    return { erro: "Barbearia não encontrada." };
-  }
-
-  const destino =
-    session.user.papel === "CLIENTE"
-      ? `/barbearia/${tenant.slug}/cliente/inicio`
-      : `/barbearia/${tenant.slug}/dashboard`;
-
-  redirect(destino);
+  return undefined;
 }
+
 
