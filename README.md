@@ -175,12 +175,15 @@ Usuários criados pelo seed (senha padrão para todos: `cortano123`):
 
 ## Roadmap (fases do MVP)
 
-### Fase 1 — Operação (próximos passos)
-- [ ] Autenticação (NextAuth) com papéis: Super Admin, Dono, Recepcionista, Barbeiro, Cliente
-- [ ] CRUD de Barbeiros, Serviços, Clientes (páginas + APIs)
-- [ ] Tela de Agenda (visualização diária/semanal por barbeiro)
-- [ ] Fluxo de agendamento pelo cliente (área do cliente)
-- [ ] Cadastro de nova barbearia (onboarding) + criação automática de subdomínio
+### Fase 1 — Operação (concluída)
+- [x] Autenticação (NextAuth) com papéis: Super Admin, Proprietário, Gerente, Barbeiro, Atendente, Cliente
+- [x] CRUD de Barbeiros, Serviços, Clientes (páginas + server actions)
+- [x] Tela de Agenda (visualização diária por barbeiro)
+- [x] Fluxo de agendamento pelo cliente (área do cliente)
+- [x] Cadastro de nova barbearia (onboarding) pelo Cortano Admin — trial
+      automático de 14 dias; criação de subdomínio real (multi-tenant por
+      domínio próprio) ainda pendente, hoje o acesso é por path
+      (`/barbearia/[slug]`)
 
 ### Fase 2 — Monetização
 - [x] Integração com gateway de pagamento — Stripe (Checkout + Webhook)
