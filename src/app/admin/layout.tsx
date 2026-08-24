@@ -32,6 +32,25 @@ export default async function AdminLayout({ children }: { children: ReactNode })
           </button>
         </form>
       </header>
+      <nav className="border-b bg-white px-6 flex gap-1 overflow-x-auto text-sm">
+        {[
+          { href: "/admin", label: "Visão geral" },
+          { href: "/admin/barbearias", label: "Barbearias" },
+          { href: "/admin/planos", label: "Planos" },
+          { href: "/admin/usuarios", label: "Usuários" },
+          { href: "/admin/assinaturas-saas", label: "Assinaturas" },
+          { href: "/admin/financeiro", label: "Financeiro" },
+          { href: "/admin/configuracoes", label: "Configurações" },
+        ].map((item) => (
+          <a
+            key={item.href}
+            href={item.href}
+            className="px-3 py-3 text-neutral-600 hover:text-neutral-900 whitespace-nowrap"
+          >
+            {item.label}
+          </a>
+        ))}
+      </nav>
       <main className="p-6">{children}</main>
     </div>
   );
