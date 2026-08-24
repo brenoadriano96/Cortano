@@ -586,3 +586,46 @@ model Avaliacao {
   @@index([tenantId])
   @@map("avaliacoes")
 }
+
+// ---------------------------------------------------------------------------
+// PROSPECÇÃO (CRM B2B do Cortano) — barbearias em potencial, ainda não são
+// tenants. Gerenciado pelo Super Admin para mapeamento e visitas comerciais.
+// ---------------------------------------------------------------------------
+
+model ProspectoBarbearia {
+  id            String   @id @default(cuid())
+  nome          String // nome da barbearia prospectada
+  contatoNome   String?
+  telefone      String?
+  email         String?
+  endereco      String?
+  origem        String? // ex: "Indicação", "Instagram", "Visita presencial"
+  status        StatusProspecto @default(NOVO)
+  valorEstimado Decimal? @db.Decimal(10, 2) // MRR potencial estimado
+  observacoes   String?
+
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@map("prospectos_barbearia")
+}
+
+enum StatusProspecto {
+  NOVO
+  CONTATADO
+  VISITA_AGENDADA
+  EM_NEGOCIACAO
+  GANHO
+  PERDIDO
+}
+
+// ---------------------------------------------------------------------------
+// CONFIGURAÇÃO DA PLATAFORMA (singleton — sempre id = "singleton")
+// ---------------------------------------------------------------------------
+
+model ConfiguracaoPlataforma {
+  id              String   @id @default("singleton")
+  trialDiasPadrao Int      @default(14)
+  suporteEmail    String?
+  updatedAt       DateTime @updatedAt
+}
