@@ -1,7 +1,8 @@
 import { prisma } from "@/lib/prisma";
-import { criarBarbearia, alterarStatusBarbearia } from "./actions";
+import { criarBarbearia, alterarStatusBarbearia, alterarPlanoBarbearia } from "./actions";
 import { NovaBarbeariaForm } from "./nova-barbearia-form";
 import { AcoesStatusBarbearia } from "./acoes-status";
+import { SeletorPlano } from "./seletor-plano";
 
 const STATUS_LABEL: Record<string, string> = {
   TRIAL: "Trial",
@@ -53,7 +54,14 @@ export default async function AdminBarbeariasPage() {
                     <p className="font-medium">{t.nome}</p>
                     <p className="text-xs text-neutral-400">/{t.slug}</p>
                   </td>
-                  <td className="p-3 text-neutral-600">{t.plano?.nome ?? "—"}</td>
+                  <td className="p-3 text-neutral-600">
+                    <SeletorPlano
+                      tenantId={t.id}
+                      planoAtualId={t.planoId}
+                      planos={planos.map((p) => ({ id: p.id, nome: p.nome }))}
+                      alterarPlanoAction={alterarPlanoBarbearia}
+                    />
+                  </td>
                   <td className="p-3">
                     <span
                       className={`text-xs px-2 py-1 rounded-full ${STATUS_COR[t.status]}`}

@@ -56,8 +56,13 @@ export async function criarBarbearia(
     return { erro: "Plano não encontrado." };
   }
 
+  const config = await prisma.configuracaoPlataforma.findUnique({
+    where: { id: "singleton" },
+  });
+  const trialDias = config?.trialDiasPadrao ?? 14;
+
   const trialFim = new Date();
-  trialFim.setDate(trialFim.getDate() + 14);
+  trialFim.setDate(trialFim.getDate() + trialDias);
 
   const tenant = await prisma.tenant.create({
     data: {
@@ -117,6 +122,34 @@ export async function alterarStatusBarbearia(
     entityType: "Tenant",
     entityId: tenantId,
     metadata: { statusAnterior: tenant.status, statusNovo: novoStatus },
+  });
+
+  revalidatePath("/admin/barbearias");
+}
+
+export async function alterarPlanoBarbearia(tenantId: string, novoPlanoId: string) {
+  const usuario = await exigirSuperAdmin();
+
+  const tenant = await prisma.tenant.findUnique({ where: { id: tenantId } });
+  const novoPlano = await prisma.planoSaas.findUnique({ where: { id: novoPlanoId } });
+  if (!tenant || !novoPlano) return;
+
+  await prisma.tenant.update({ where: { id: tenantId }, data: { planoId: novoPlanoId } });
+
+  // Mantém a assinatura SaaS em sincronia com o novo plano/valor (upgrade/downgrade)
+  await prisma.assinaturaSaas.updateMany({
+    where: { tenantId },
+    data: { planoId: novoPlanoId, valor: novoPlano.precoMensal },
+  });
+
+  // Alteração de plano é ação crítica (seção 21)
+  await registrarAuditoria({
+    actorId: usuario.id,
+    tenantId,
+    action: "tenant.alterar_plano",
+    entityType: "Tenant",
+    entityId: tenantId,
+    metadata: { planoAnteriorId: tenant.planoId, planoNovoId: novoPlanoId },
   });
 
   revalidatePath("/admin/barbearias");
