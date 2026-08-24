@@ -249,6 +249,34 @@ export async function GET(req: NextRequest) {
     }
     logs.push(`${clientes.length} clientes criados`);
 
+    // 6b. Login para o primeiro cliente (Marcos Silva), para testar a área
+    // do cliente (Cortano Client) — os demais seguem só como cadastro CRM.
+    const usuarioClienteExistente = await prisma.usuario.findFirst({
+      where: { tenantId: tenant.id, email: clientes[0].email! },
+    });
+    const usuarioCliente =
+      usuarioClienteExistente ??
+      (await prisma.usuario.create({
+        data: {
+          tenantId: tenant.id,
+          nome: clientes[0].nome,
+          email: clientes[0].email!,
+          senhaHash,
+          papel: PapelUsuario.CLIENTE,
+        },
+      }));
+    if (usuarioClienteExistente && !usuarioClienteExistente.senhaHash) {
+      await prisma.usuario.update({
+        where: { id: usuarioClienteExistente.id },
+        data: { senhaHash },
+      });
+    }
+    await prisma.cliente.update({
+      where: { id: clientes[0].id },
+      data: { usuarioId: usuarioCliente.id },
+    });
+    logs.push(`Login de cliente de teste: ${clientes[0].email} (senha: ${SENHA_PADRAO_SEED})`);
+
     // 7. Plano de cliente + assinatura
     const planoCorteBarba = await prisma.planoCliente.upsert({
       where: { id: "plano-cliente-corte-barba-seed" },
