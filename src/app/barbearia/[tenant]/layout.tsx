@@ -54,18 +54,29 @@ export default async function BarbeariaLayout({
         </form>
       </header>
       <nav className="border-b bg-white px-6 flex gap-1 overflow-x-auto text-sm">
-        {[
-          { href: "dashboard", label: "Início" },
-          { href: "agenda", label: "Agenda" },
-          { href: "clientes", label: "Clientes" },
-          { href: "barbeiros", label: "Equipe" },
-          { href: "servicos", label: "Serviços" },
-          { href: "assinaturas", label: "Assinaturas" },
-          { href: "loja", label: "Loja" },
-          { href: "financeiro", label: "Financeiro" },
-          { href: "relatorios", label: "Relatórios" },
-          { href: "configuracoes", label: "Configurações" },
-        ].map((item) => (
+        {(session.user.papel === "CLIENTE"
+          ? [
+              { href: "cliente/inicio", label: "Início" },
+              { href: "cliente/agendar", label: "Agendar" },
+              { href: "cliente/agendamentos", label: "Agendamentos" },
+              { href: "cliente/meu-plano", label: "Meu Plano" },
+              { href: "cliente/loja", label: "Loja" },
+              { href: "cliente/pedidos", label: "Pedidos" },
+              { href: "cliente/perfil", label: "Perfil" },
+            ]
+          : [
+              { href: "dashboard", label: "Início" },
+              { href: "agenda", label: "Agenda" },
+              { href: "clientes", label: "Clientes" },
+              { href: "barbeiros", label: "Equipe" },
+              { href: "servicos", label: "Serviços" },
+              { href: "assinaturas", label: "Assinaturas" },
+              { href: "loja", label: "Loja" },
+              { href: "financeiro", label: "Financeiro" },
+              { href: "relatorios", label: "Relatórios" },
+              { href: "configuracoes", label: "Configurações" },
+            ]
+        ).map((item) => (
           <a
             key={item.href}
             href={`/barbearia/${slug}/${item.href}`}
