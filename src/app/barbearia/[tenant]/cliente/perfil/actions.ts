@@ -42,3 +42,38 @@ export async function atualizarPerfilCliente(
   revalidatePath(`/barbearia/${slug}/cliente/perfil`);
   return { sucesso: true };
 }
+
+const indicacaoSchema = z.object({
+  nomeIndicado: z.string().min(2, "Nome muito curto"),
+  telefoneIndicado: z.string().min(8, "Telefone inválido"),
+});
+
+export type EstadoIndicacao = { erro?: string; sucesso?: boolean } | undefined;
+
+export async function indicarAmigo(
+  tenantId: string,
+  slug: string,
+  clienteIndicadorId: string,
+  _estado: EstadoIndicacao,
+  formData: FormData
+): Promise<EstadoIndicacao> {
+  const parsed = indicacaoSchema.safeParse({
+    nomeIndicado: formData.get("nomeIndicado"),
+    telefoneIndicado: formData.get("telefoneIndicado"),
+  });
+  if (!parsed.success) {
+    return { erro: parsed.error.issues[0]?.message ?? "Dados inválidos" };
+  }
+
+  await prisma.indicacao.create({
+    data: {
+      tenantId,
+      clienteIndicadorId,
+      nomeIndicado: parsed.data.nomeIndicado,
+      telefoneIndicado: parsed.data.telefoneIndicado,
+    },
+  });
+
+  revalidatePath(`/barbearia/${slug}/cliente/perfil`);
+  return { sucesso: true };
+}
