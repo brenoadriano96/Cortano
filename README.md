@@ -200,16 +200,44 @@ Usuários criados pelo seed (senha padrão para todos: `cortano123`):
 - [x] Gestão de pedidos (status: Novo → Pago → Preparando → Pronto p/
       retirada → Entregue, com cancelamento que devolve o estoque)
 
-### Fase 4 — Inteligência
-- [ ] Relatórios avançados (faturamento por barbeiro/serviço)
-- [ ] Avaliações pós-atendimento
-- [ ] Cupons, cashback, indicação
+### Fase 4 — Inteligência (concluída)
+- [x] Relatórios avançados (faturamento por barbeiro/serviço, ticket médio,
+      nota média de avaliação — mês atual)
+- [x] Avaliações pós-atendimento (cliente avalia barbeiro/serviço/experiência
+      com estrelas após status ATENDIDO, uma vez por agendamento)
+- [x] Cupons (percentual ou valor fixo, com validade e limite de usos —
+      gerenciados em Configurações da barbearia, aplicáveis no checkout da loja)
+- [x] Cashback (5% do valor pago em produtos, creditado só quando o pedido é
+      entregue; pode ser usado como desconto em compras futuras)
+- [x] Indicação de amigos (cliente indica pelo perfil; barbearia marca como
+      convertido em Configurações, gerando cashback automático de R$ 20 para
+      quem indicou)
 
-### Fase 5 — Ecossistema
-- [ ] Integração WhatsApp (notificações automáticas)
-- [ ] Multiunidades por barbearia
-- [ ] PWA / App mobile
-- [ ] White-label
+### Fase 5 — Ecossistema (parcial)
+- [x] Integração WhatsApp — notificações automáticas via Meta Cloud API
+      (agendamento confirmado para cliente e barbearia, estoque baixo).
+      Requer `WHATSAPP_TOKEN` e `WHATSAPP_PHONE_ID`; sem essas variáveis, as
+      notificações são só logadas no console, sem quebrar o fluxo principal
+- [ ] Multiunidades por barbearia — ainda não implementado (maior mudança
+      estrutural pendente: exigiria um model `Unidade` e escopar agenda,
+      barbeiros e estoque por unidade dentro do mesmo tenant)
+- [x] PWA — `src/app/manifest.ts` + ícones em `public/`, instalável direto
+      do navegador no celular (Adicionar à tela inicial)
+- [x] White-label — cor de marca (`Tenant.corPrimaria`) e logo editáveis em
+      Configurações, aplicados no header e nos botões de destaque da área
+      do cliente
+
+## WhatsApp (notificações automáticas)
+
+**Setup:**
+1. Crie um app em https://developers.facebook.com com o produto "WhatsApp"
+2. Copie o token de acesso temporário (ou permanente, para produção) para
+   `WHATSAPP_TOKEN`
+3. Copie o "Phone number ID" para `WHATSAPP_PHONE_ID`
+
+Sem essas variáveis, as notificações apenas aparecem no log do build/função
+(`console.log`) em vez de serem enviadas — o app funciona normalmente, só
+sem o envio real.
 
 ## Pagamentos (Stripe)
 
