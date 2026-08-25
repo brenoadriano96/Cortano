@@ -29,14 +29,20 @@ export default async function BarbeariaLayout({
   }
 
   return (
-    <div className="min-h-screen bg-neutral-50">
+    <div
+      className="min-h-screen bg-neutral-50"
+      style={{ "--cor-primaria": tenant.corPrimaria ?? "#171717" } as React.CSSProperties}
+    >
       <header className="border-b bg-white px-6 py-4 flex items-center gap-3 justify-between">
         <div className="flex items-center gap-3">
           {tenant.logoUrl ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img src={tenant.logoUrl} alt={tenant.nome} className="h-8 w-8 rounded" />
           ) : (
-            <div className="h-8 w-8 rounded bg-neutral-900 text-white flex items-center justify-center text-sm font-bold">
+            <div
+              className="h-8 w-8 rounded text-white flex items-center justify-center text-sm font-bold"
+              style={{ backgroundColor: "var(--cor-primaria)" }}
+            >
               {tenant.nome.charAt(0)}
             </div>
           )}

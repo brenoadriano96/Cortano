@@ -3,6 +3,11 @@
 import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
+import {
+  enviarWhatsApp,
+  mensagemAgendamentoConfirmado,
+  mensagemNovoAgendamentoParaBarbearia,
+} from "@/lib/whatsapp";
 
 export type EstadoForm = { erro?: string; sucesso?: boolean } | undefined;
 
@@ -66,7 +71,7 @@ export async function clienteAgendar(
     return { erro: "Esse horário não está mais disponível para este barbeiro." };
   }
 
-  await prisma.agendamento.create({
+  const agendamento = await prisma.agendamento.create({
     data: {
       tenantId,
       clienteId,
@@ -79,7 +84,32 @@ export async function clienteAgendar(
         create: servicos.map((s) => ({ servicoId: s.id, precoCobrado: s.preco })),
       },
     },
+    include: { cliente: true, barbeiro: true, tenant: true },
   });
+
+  // Notificações via WhatsApp (seção 9) — falha aqui nunca bloqueia o
+  // agendamento em si, enviarWhatsApp já trata erros internamente.
+  if (agendamento.cliente.telefone) {
+    await enviarWhatsApp(
+      agendamento.cliente.telefone,
+      mensagemAgendamentoConfirmado({
+        clienteNome: agendamento.cliente.nome,
+        barbeariaNome: agendamento.tenant.nome,
+        dataHora: inicio,
+        servicos: servicos.map((s) => s.nome).join(", "),
+      })
+    );
+  }
+  if (agendamento.tenant.telefone) {
+    await enviarWhatsApp(
+      agendamento.tenant.telefone,
+      mensagemNovoAgendamentoParaBarbearia({
+        clienteNome: agendamento.cliente.nome,
+        dataHora: inicio,
+        barbeiroNome: agendamento.barbeiro.nome,
+      })
+    );
+  }
 
   revalidatePath(`/barbearia/${slug}/cliente/agendamentos`);
   return { sucesso: true };

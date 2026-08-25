@@ -32,6 +32,7 @@ export default async function ClienteLojaPage({
           estoque: p.estoque,
         }))}
         finalizarPedidoAction={finalizarPedidoComContexto}
+        saldoCashback={Number(cliente.saldoCashback)}
       />
     </div>
   );

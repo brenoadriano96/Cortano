@@ -23,7 +23,11 @@ export default async function ClienteAgendamentosPage({
 
   const agendamentos = await prisma.agendamento.findMany({
     where: { tenantId: tenant.id, clienteId: cliente.id },
-    include: { barbeiro: true, servicos: { include: { servico: true } } },
+    include: {
+      barbeiro: true,
+      servicos: { include: { servico: true } },
+      avaliacao: true,
+    },
     orderBy: { dataHoraInicio: "desc" },
   });
 
@@ -64,6 +68,14 @@ export default async function ClienteAgendamentosPage({
                 <span className="text-xs text-neutral-500">{STATUS_LABEL[a.status]}</span>
                 {podeCancelar && (
                   <BotaoCancelar agendamentoId={a.id} cancelarAction={cancelarComContexto} />
+                )}
+                {a.status === "ATENDIDO" && !a.avaliacao && (
+                  <a
+                    href={`/barbearia/${slug}/cliente/avaliar/${a.id}`}
+                    className="text-xs text-neutral-900 hover:underline"
+                  >
+                    Avaliar
+                  </a>
                 )}
               </div>
             </div>

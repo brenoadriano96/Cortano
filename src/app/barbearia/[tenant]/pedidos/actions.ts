@@ -19,10 +19,23 @@ export async function avancarStatusPedido(tenantId: string, slug: string, pedido
   const proximo = PROXIMO_STATUS[pedido.status];
   if (!proximo) return;
 
-  await prisma.pedido.updateMany({
-    where: { id: pedidoId, tenantId },
-    data: { status: proximo as never },
-  });
+  // Credita o cashback gerado ao cliente somente quando o pedido é
+  // efetivamente entregue — evita uso do cashback antes da entrega real.
+  if (proximo === "ENTREGUE" && pedido.cashbackGerado && Number(pedido.cashbackGerado) > 0) {
+    await prisma.$transaction([
+      prisma.pedido.update({ where: { id: pedidoId }, data: { status: "ENTREGUE" } }),
+      prisma.cliente.update({
+        where: { id: pedido.clienteId },
+        data: { saldoCashback: { increment: pedido.cashbackGerado } },
+      }),
+    ]);
+  } else {
+    await prisma.pedido.updateMany({
+      where: { id: pedidoId, tenantId },
+      data: { status: proximo as never },
+    });
+  }
+
   revalidatePath(`/barbearia/${slug}/pedidos`);
 }
 
@@ -33,7 +46,9 @@ export async function cancelarPedido(tenantId: string, slug: string, pedidoId: s
   });
   if (!pedido || pedido.status === "ENTREGUE" || pedido.status === "CANCELADO") return;
 
-  // Devolve o estoque reservado ao cancelar
+  const cashbackUsado = pedido.cashbackUsado ? Number(pedido.cashbackUsado) : 0;
+
+  // Devolve o estoque reservado e o cashback usado (se houve) ao cancelar
   await prisma.$transaction([
     ...pedido.itens.map((item) =>
       prisma.produto.update({
@@ -41,6 +56,14 @@ export async function cancelarPedido(tenantId: string, slug: string, pedidoId: s
         data: { estoque: { increment: item.quantidade } },
       })
     ),
+    ...(cashbackUsado > 0
+      ? [
+          prisma.cliente.update({
+            where: { id: pedido.clienteId },
+            data: { saldoCashback: { increment: cashbackUsado } },
+          }),
+        ]
+      : []),
     prisma.pedido.update({
       where: { id: pedidoId },
       data: { status: "CANCELADO" },

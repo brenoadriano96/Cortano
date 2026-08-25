@@ -4,6 +4,9 @@ import { prisma } from "@/lib/prisma";
 import { verificarLimitePlano } from "@/lib/planos";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
+import { enviarWhatsApp, mensagemEstoqueBaixo } from "@/lib/whatsapp";
+
+const LIMITE_ESTOQUE_BAIXO = 5;
 
 export type EstadoForm = { erro?: string } | undefined;
 
@@ -62,10 +65,27 @@ export async function atualizarEstoque(
   novoEstoque: number
 ) {
   if (novoEstoque < 0) return;
-  await prisma.produto.updateMany({
+
+  const produtoExistente = await prisma.produto.findFirst({
     where: { id: produtoId, tenantId },
+  });
+  if (!produtoExistente) return;
+
+  await prisma.produto.update({
+    where: { id: produtoId },
     data: { estoque: novoEstoque },
   });
+
+  if (novoEstoque <= LIMITE_ESTOQUE_BAIXO) {
+    const tenant = await prisma.tenant.findUnique({ where: { id: tenantId } });
+    if (tenant?.telefone) {
+      await enviarWhatsApp(
+        tenant.telefone,
+        mensagemEstoqueBaixo({ produtoNome: produtoExistente.nome, estoqueAtual: novoEstoque })
+      );
+    }
+  }
+
   revalidatePath(`/barbearia/${slug}/loja`);
 }
 

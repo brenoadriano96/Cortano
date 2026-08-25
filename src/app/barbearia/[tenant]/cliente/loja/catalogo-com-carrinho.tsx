@@ -14,13 +14,19 @@ type Produto = {
 export function CatalogoComCarrinho({
   produtos,
   finalizarPedidoAction,
+  saldoCashback,
 }: {
   produtos: Produto[];
   finalizarPedidoAction: (
-    itens: { produtoId: string; quantidade: number }[]
+    itens: { produtoId: string; quantidade: number }[],
+    cupomCodigo?: string,
+    usarCashback?: boolean
   ) => Promise<EstadoCarrinho>;
+  saldoCashback: number;
 }) {
   const [carrinho, setCarrinho] = useState<Record<string, number>>({});
+  const [cupomCodigo, setCupomCodigo] = useState("");
+  const [usarCashback, setUsarCashback] = useState(false);
   const [estado, setEstado] = useState<EstadoCarrinho>(undefined);
   const [pendente, startTransition] = useTransition();
 
@@ -46,10 +52,16 @@ export function CatalogoComCarrinho({
       quantidade,
     }));
     startTransition(async () => {
-      const resultado = await finalizarPedidoAction(itens);
+      const resultado = await finalizarPedidoAction(
+        itens,
+        cupomCodigo.trim() || undefined,
+        usarCashback
+      );
       setEstado(resultado);
       if (resultado?.sucesso) {
         setCarrinho({});
+        setCupomCodigo("");
+        setUsarCashback(false);
       }
     });
   }
@@ -129,6 +141,30 @@ export function CatalogoComCarrinho({
               <span>R$ {total.toFixed(2)}</span>
             </div>
           </div>
+        )}
+
+        <div className="mb-3">
+          <label className="block text-xs text-neutral-500 mb-1" htmlFor="cupomCodigo">
+            Cupom de desconto
+          </label>
+          <input
+            id="cupomCodigo"
+            value={cupomCodigo}
+            onChange={(e) => setCupomCodigo(e.target.value)}
+            placeholder="Código"
+            className="w-full rounded-md border px-3 py-1.5 text-sm uppercase"
+          />
+        </div>
+
+        {saldoCashback > 0 && (
+          <label className="flex items-center gap-2 text-sm mb-3">
+            <input
+              type="checkbox"
+              checked={usarCashback}
+              onChange={(e) => setUsarCashback(e.target.checked)}
+            />
+            Usar cashback disponível (R$ {saldoCashback.toFixed(2)})
+          </label>
         )}
 
         {estado?.erro && <p className="text-red-500 text-xs mb-2">{estado.erro}</p>}

@@ -71,7 +71,8 @@ export default async function ClienteInicioPage({
 
       <a
         href={`/barbearia/${slug}/cliente/agendar`}
-        className="block text-center mt-6 bg-neutral-900 text-white rounded-md py-2.5 text-sm font-medium"
+        className="block text-center mt-6 text-white rounded-md py-2.5 text-sm font-medium"
+        style={{ backgroundColor: "var(--cor-primaria)" }}
       >
         Agendar horário
       </a>
