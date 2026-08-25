@@ -60,6 +60,7 @@ model Tenant {
   auditLogs       AuditLog[]
   cupons          Cupom[]
   indicacoes      Indicacao[]
+  unidades        Unidade[]
 
   @@map("tenants")
 }
@@ -207,6 +208,9 @@ model Barbeiro {
   usuarioId     String?  @unique
   usuario       Usuario? @relation(fields: [usuarioId], references: [id])
 
+  unidadeId     String?
+  unidade       Unidade? @relation(fields: [unidadeId], references: [id])
+
   nome          String
   fotoUrl       String?
   especialidades String[] @default([])
@@ -327,6 +331,8 @@ model Agendamento {
   cliente       Cliente  @relation(fields: [clienteId], references: [id])
   barbeiroId    String
   barbeiro      Barbeiro @relation(fields: [barbeiroId], references: [id])
+  unidadeId     String?
+  unidade       Unidade? @relation(fields: [unidadeId], references: [id])
 
   dataHoraInicio DateTime
   dataHoraFim    DateTime
@@ -695,4 +701,31 @@ model Indicacao {
 enum StatusIndicacao {
   PENDENTE
   CONVERTIDO
+}
+
+// ---------------------------------------------------------------------------
+// MULTIUNIDADES (Fase 5) — uma barbearia (tenant) pode ter várias unidades
+// físicas. Retrocompatível: unidadeId é opcional em Barbeiro e Agendamento,
+// então tenants com uma única localização continuam funcionando sem
+// nenhuma unidade cadastrada (comportamento anterior preservado).
+// ---------------------------------------------------------------------------
+
+model Unidade {
+  id        String   @id @default(cuid())
+  tenantId  String
+  tenant    Tenant   @relation(fields: [tenantId], references: [id])
+
+  nome      String
+  endereco  String?
+  telefone  String?
+  ativo     Boolean  @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  barbeiros     Barbeiro[]
+  agendamentos  Agendamento[]
+
+  @@index([tenantId])
+  @@map("unidades")
 }
