@@ -30,6 +30,7 @@ model Tenant {
   razaoSocial   String?
   cnpj          String?
   logoUrl       String?
+  corPrimaria   String?  @default("#171717") // white-label: cor de destaque da barbearia (hex)
   telefone      String?
   email         String?
   endereco      String?
@@ -57,6 +58,8 @@ model Tenant {
   avaliacoes      Avaliacao[]
   assinaturaSaas  AssinaturaSaas?
   auditLogs       AuditLog[]
+  cupons          Cupom[]
+  indicacoes      Indicacao[]
 
   @@map("tenants")
 }
@@ -294,6 +297,7 @@ model Cliente {
   dataNascimento DateTime?
   observacoes   String?
   barbeiroFavoritoId String?
+  saldoCashback Decimal  @db.Decimal(10, 2) @default(0)
 
   ativo         Boolean  @default(true)
   createdAt     DateTime @default(now())
@@ -303,6 +307,8 @@ model Cliente {
   assinatura    AssinaturaCliente?
   pedidos       Pedido[]
   avaliacoes    Avaliacao[]
+  indicacoesFeitas   Indicacao[] @relation("indicacoesFeitas")
+  indicacaoOrigem    Indicacao?  @relation("indicacaoOrigem")
 
   @@index([tenantId])
   @@map("clientes")
@@ -506,6 +512,10 @@ model Pedido {
 
   status        StatusPedido @default(NOVO)
   valorTotal    Decimal  @db.Decimal(10, 2)
+  descontoCupom Decimal? @db.Decimal(10, 2)
+  cupomCodigo   String?
+  cashbackUsado Decimal? @db.Decimal(10, 2)
+  cashbackGerado Decimal? @db.Decimal(10, 2)
 
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
@@ -628,4 +638,61 @@ model ConfiguracaoPlataforma {
   trialDiasPadrao Int      @default(14)
   suporteEmail    String?
   updatedAt       DateTime @updatedAt
+}
+
+// ---------------------------------------------------------------------------
+// CUPONS, CASHBACK E INDICAÇÃO (Fase 4 — Fidelização)
+// ---------------------------------------------------------------------------
+
+model Cupom {
+  id              String   @id @default(cuid())
+  tenantId        String
+  tenant          Tenant   @relation(fields: [tenantId], references: [id])
+
+  codigo          String
+  tipo            TipoCupom
+  valor           Decimal  @db.Decimal(10, 2) // percentual (ex: 10) ou valor fixo em R$
+  validoAte       DateTime?
+  usoMaximo       Int? // null = ilimitado
+  usosRealizados  Int      @default(0)
+  ativo           Boolean  @default(true)
+
+  createdAt       DateTime @default(now())
+
+  @@unique([tenantId, codigo])
+  @@index([tenantId])
+  @@map("cupons")
+}
+
+enum TipoCupom {
+  PERCENTUAL
+  VALOR_FIXO
+}
+
+model Indicacao {
+  id                String   @id @default(cuid())
+  tenantId          String
+  tenant            Tenant   @relation(fields: [tenantId], references: [id])
+
+  clienteIndicadorId String
+  clienteIndicador    Cliente @relation("indicacoesFeitas", fields: [clienteIndicadorId], references: [id])
+
+  nomeIndicado      String
+  telefoneIndicado  String
+
+  clienteConvertidoId String? @unique
+  clienteConvertido   Cliente? @relation("indicacaoOrigem", fields: [clienteConvertidoId], references: [id])
+
+  status            StatusIndicacao @default(PENDENTE)
+  recompensaValor   Decimal? @db.Decimal(10, 2)
+
+  createdAt         DateTime @default(now())
+
+  @@index([tenantId])
+  @@map("indicacoes")
+}
+
+enum StatusIndicacao {
+  PENDENTE
+  CONVERTIDO
 }
