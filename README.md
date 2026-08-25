@@ -213,14 +213,15 @@ Usuários criados pelo seed (senha padrão para todos: `cortano123`):
       convertido em Configurações, gerando cashback automático de R$ 20 para
       quem indicou)
 
-### Fase 5 — Ecossistema (parcial)
+### Fase 5 — Ecossistema (concluída)
 - [x] Integração WhatsApp — notificações automáticas via Meta Cloud API
       (agendamento confirmado para cliente e barbearia, estoque baixo).
       Requer `WHATSAPP_TOKEN` e `WHATSAPP_PHONE_ID`; sem essas variáveis, as
       notificações são só logadas no console, sem quebrar o fluxo principal
-- [ ] Multiunidades por barbearia — ainda não implementado (maior mudança
-      estrutural pendente: exigiria um model `Unidade` e escopar agenda,
-      barbeiros e estoque por unidade dentro do mesmo tenant)
+- [x] Multiunidades por barbearia — model `Unidade` (novo), barbeiros podem
+      ser vinculados a uma unidade, agenda filtrável por unidade. Totalmente
+      retrocompatível: tenants com uma única localização não precisam
+      cadastrar nenhuma unidade e tudo continua funcionando como antes
 - [x] PWA — `src/app/manifest.ts` + ícones em `public/`, instalável direto
       do navegador no celular (Adicionar à tela inicial)
 - [x] White-label — cor de marca (`Tenant.corPrimaria`) e logo editáveis em
