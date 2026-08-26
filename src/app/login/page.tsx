@@ -1,10 +1,13 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, Suspense } from "react";
+import { useSearchParams } from "next/navigation";
 import { autenticar } from "./actions";
 
-export default function LoginPage() {
+function LoginForm() {
   const [estado, formAction, pendente] = useActionState(autenticar, undefined);
+  const searchParams = useSearchParams();
+  const tenantSlug = searchParams.get("tenant");
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-neutral-950 px-4">
@@ -59,7 +62,27 @@ export default function LoginPage() {
             {pendente ? "Entrando..." : "Entrar"}
           </button>
         </form>
+
+        {tenantSlug && (
+          <p className="text-center text-neutral-500 text-sm mt-4">
+            Ainda não tem conta?{" "}
+            <a
+              href={`/barbearia/${tenantSlug}/cadastro-cliente`}
+              className="text-white hover:underline"
+            >
+              Criar conta
+            </a>
+          </p>
+        )}
       </div>
     </div>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={null}>
+      <LoginForm />
+    </Suspense>
   );
 }
