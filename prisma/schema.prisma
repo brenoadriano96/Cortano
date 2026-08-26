@@ -61,6 +61,7 @@ model Tenant {
   cupons          Cupom[]
   indicacoes      Indicacao[]
   unidades        Unidade[]
+  bloqueiosAgenda BloqueioAgenda[]
 
   @@map("tenants")
 }
@@ -224,6 +225,7 @@ model Barbeiro {
   servicos      ServicoBarbeiro[]
   agendamentos  Agendamento[]
   avaliacoes    Avaliacao[]
+  bloqueios     BloqueioAgenda[]
 
   @@index([tenantId])
   @@map("barbeiros")
@@ -728,4 +730,27 @@ model Unidade {
 
   @@index([tenantId])
   @@map("unidades")
+}
+
+// ---------------------------------------------------------------------------
+// BLOQUEIO DE AGENDA (seção 14) — folgas, almoço, feriados por barbeiro
+// ---------------------------------------------------------------------------
+
+model BloqueioAgenda {
+  id         String   @id @default(cuid())
+  tenantId   String
+  tenant     Tenant   @relation(fields: [tenantId], references: [id])
+
+  barbeiroId String
+  barbeiro   Barbeiro @relation(fields: [barbeiroId], references: [id])
+
+  inicio     DateTime
+  fim        DateTime
+  motivo     String?
+
+  createdAt  DateTime @default(now())
+
+  @@index([tenantId])
+  @@index([barbeiroId])
+  @@map("bloqueios_agenda")
 }
