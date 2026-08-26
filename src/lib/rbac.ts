@@ -84,3 +84,14 @@ export function podeAcessarTenant(
   if (papel === "SUPER_ADMIN") return true;
   return usuarioTenantId === tenantIdAlvo;
 }
+
+/**
+ * Papéis que têm acesso de gestão ampla dentro do tenant (financeiro,
+ * configurações, equipe, relatórios). Barbeiro e Atendente têm acesso
+ * operacional mais restrito (seções 4.4 e 4.5).
+ */
+export const PAPEIS_GESTAO: PapelUsuario[] = ["SUPER_ADMIN", "PROPRIETARIO", "GERENTE"];
+
+export function temAcessoGestao(papel: PapelUsuario): boolean {
+  return PAPEIS_GESTAO.includes(papel);
+}
