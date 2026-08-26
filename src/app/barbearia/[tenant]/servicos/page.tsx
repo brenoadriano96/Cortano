@@ -1,5 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { getTenantBySlug } from "@/lib/tenant";
+import { auth } from "@/auth";
+import { temAcessoGestao } from "@/lib/rbac";
 import { criarServico, inativarServico } from "./actions";
 import { NovoServicoForm } from "./novo-servico-form";
 
@@ -10,6 +12,9 @@ export default async function ServicosPage({
 }) {
   const { tenant: slug } = await params;
   const tenant = await getTenantBySlug(slug);
+
+  const session = await auth();
+  const podeGerenciar = session ? temAcessoGestao(session.user.papel) : false;
 
   const servicos = await prisma.servico.findMany({
     where: { tenantId: tenant.id, ativo: true },
@@ -27,14 +32,14 @@ export default async function ServicosPage({
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2 bg-white rounded-lg border">
+        <div className={podeGerenciar ? "lg:col-span-2 bg-white rounded-lg border" : "lg:col-span-3 bg-white rounded-lg border"}>
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b text-left text-neutral-500">
                 <th className="p-3 font-medium">Nome</th>
                 <th className="p-3 font-medium">Preço</th>
                 <th className="p-3 font-medium">Duração</th>
-                <th className="p-3 font-medium"></th>
+                {podeGerenciar && <th className="p-3 font-medium"></th>}
               </tr>
             </thead>
             <tbody>
@@ -45,23 +50,25 @@ export default async function ServicosPage({
                     R$ {Number(s.preco).toFixed(2)}
                   </td>
                   <td className="p-3 text-neutral-600">{s.duracaoMin} min</td>
-                  <td className="p-3 text-right">
-                    <form
-                      action={async () => {
-                        "use server";
-                        await inativarServicoComTenant(s.id);
-                      }}
-                    >
-                      <button type="submit" className="text-xs text-red-500 hover:underline">
-                        Remover
-                      </button>
-                    </form>
-                  </td>
+                  {podeGerenciar && (
+                    <td className="p-3 text-right">
+                      <form
+                        action={async () => {
+                          "use server";
+                          await inativarServicoComTenant(s.id);
+                        }}
+                      >
+                        <button type="submit" className="text-xs text-red-500 hover:underline">
+                          Remover
+                        </button>
+                      </form>
+                    </td>
+                  )}
                 </tr>
               ))}
               {servicos.length === 0 && (
                 <tr>
-                  <td colSpan={4} className="p-6 text-center text-neutral-400">
+                  <td colSpan={podeGerenciar ? 4 : 3} className="p-6 text-center text-neutral-400">
                     Nenhum serviço cadastrado ainda.
                   </td>
                 </tr>
@@ -70,9 +77,11 @@ export default async function ServicosPage({
           </table>
         </div>
 
-        <div>
-          <NovoServicoForm criarServicoAction={criarServicoComTenant} />
-        </div>
+        {podeGerenciar && (
+          <div>
+            <NovoServicoForm criarServicoAction={criarServicoComTenant} />
+          </div>
+        )}
       </div>
     </div>
   );

@@ -3,6 +3,7 @@
 import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
+import { validarDisponibilidade } from "@/lib/disponibilidade";
 import {
   enviarWhatsApp,
   mensagemAgendamentoConfirmado,
@@ -59,16 +60,10 @@ export async function clienteAgendar(
 
   const fim = new Date(inicio.getTime() + duracaoTotalMin * 60_000);
 
-  const conflito = await prisma.agendamento.findFirst({
-    where: {
-      tenantId,
-      barbeiroId,
-      status: { in: ["AGENDADO", "CONFIRMADO"] },
-      AND: [{ dataHoraInicio: { lt: fim } }, { dataHoraFim: { gt: inicio } }],
-    },
-  });
-  if (conflito) {
-    return { erro: "Esse horário não está mais disponível para este barbeiro." };
+  // Seção 14: valida expediente, bloqueios de agenda e conflitos
+  const erroDisponibilidade = await validarDisponibilidade(tenantId, barbeiroId, inicio, fim);
+  if (erroDisponibilidade) {
+    return { erro: erroDisponibilidade };
   }
 
   const agendamento = await prisma.agendamento.create({

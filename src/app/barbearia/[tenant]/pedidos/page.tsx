@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { getTenantBySlug } from "@/lib/tenant";
+import { exigirAcessoGestao } from "@/lib/acesso-pagina";
 import { avancarStatusPedido, cancelarPedido } from "./actions";
 import { AcoesPedido } from "./acoes-pedido";
 
@@ -27,6 +28,7 @@ export default async function PedidosPage({
   params: Promise<{ tenant: string }>;
 }) {
   const { tenant: slug } = await params;
+  await exigirAcessoGestao(slug);
   const tenant = await getTenantBySlug(slug);
 
   const pedidos = await prisma.pedido.findMany({

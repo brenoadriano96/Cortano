@@ -1,6 +1,8 @@
 "use server";
 
 import { prisma } from "@/lib/prisma";
+import { registrarAuditoria } from "@/lib/auditoria";
+import { auth } from "@/auth";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
@@ -34,6 +36,18 @@ export async function atualizarBranding(
       logoUrl: parsed.data.logoUrl || undefined,
     },
   });
+
+  const session = await auth();
+  if (session?.user) {
+    await registrarAuditoria({
+      actorId: session.user.id,
+      tenantId,
+      action: "barbearia.atualizar_branding",
+      entityType: "Tenant",
+      entityId: tenantId,
+      metadata: parsed.data,
+    });
+  }
 
   revalidatePath(`/barbearia/${slug}`, "layout");
   return undefined;
@@ -89,6 +103,19 @@ export async function criarCupom(
     },
   });
 
+  // Seção 21: alteração de dados financeiros (cupom afeta faturamento)
+  const session = await auth();
+  if (session?.user) {
+    await registrarAuditoria({
+      actorId: session.user.id,
+      tenantId,
+      action: "cupom.criar",
+      entityType: "Cupom",
+      entityId: parsed.data.codigo,
+      metadata: { tipo: parsed.data.tipo, valor: parsed.data.valor },
+    });
+  }
+
   revalidatePath(`/barbearia/${slug}/configuracoes`);
   return undefined;
 }
@@ -123,6 +150,19 @@ export async function converterIndicacao(
       data: { saldoCashback: { increment: RECOMPENSA_INDICACAO } },
     }),
   ]);
+
+  // Seção 21: alteração de dados financeiros (concede cashback)
+  const session = await auth();
+  if (session?.user) {
+    await registrarAuditoria({
+      actorId: session.user.id,
+      tenantId,
+      action: "indicacao.converter",
+      entityType: "Indicacao",
+      entityId: indicacaoId,
+      metadata: { recompensaValor: RECOMPENSA_INDICACAO },
+    });
+  }
 
   revalidatePath(`/barbearia/${slug}/configuracoes`);
 }

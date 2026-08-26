@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { getTenantBySlug } from "@/lib/tenant";
+import { exigirAcessoGestao } from "@/lib/acesso-pagina";
 import { criarBarbeiro, inativarBarbeiro } from "./actions";
 import { NovoBarbeiroForm } from "./novo-barbeiro-form";
 
@@ -9,14 +10,20 @@ export default async function BarbeirosPage({
   params: Promise<{ tenant: string }>;
 }) {
   const { tenant: slug } = await params;
+  await exigirAcessoGestao(slug);
   const tenant = await getTenantBySlug(slug);
 
-  const [barbeiros, servicos] = await Promise.all([
+  const [barbeiros, servicos, unidades] = await Promise.all([
     prisma.barbeiro.findMany({
       where: { tenantId: tenant.id, ativo: true },
+      include: { unidade: true },
       orderBy: { createdAt: "desc" },
     }),
     prisma.servico.findMany({
+      where: { tenantId: tenant.id, ativo: true },
+      select: { id: true, nome: true },
+    }),
+    prisma.unidade.findMany({
       where: { tenantId: tenant.id, ativo: true },
       select: { id: true, nome: true },
     }),
@@ -38,6 +45,7 @@ export default async function BarbeirosPage({
             <thead>
               <tr className="border-b text-left text-neutral-500">
                 <th className="p-3 font-medium">Nome</th>
+                {unidades.length > 0 && <th className="p-3 font-medium">Unidade</th>}
                 <th className="p-3 font-medium">Especialidades</th>
                 <th className="p-3 font-medium">Comissão</th>
                 <th className="p-3 font-medium"></th>
@@ -47,6 +55,9 @@ export default async function BarbeirosPage({
               {barbeiros.map((b) => (
                 <tr key={b.id} className="border-b last:border-0">
                   <td className="p-3 font-medium">{b.nome}</td>
+                  {unidades.length > 0 && (
+                    <td className="p-3 text-neutral-600">{b.unidade?.nome ?? "—"}</td>
+                  )}
                   <td className="p-3 text-neutral-600">
                     {b.especialidades.length > 0 ? b.especialidades.join(", ") : "—"}
                   </td>
@@ -69,7 +80,7 @@ export default async function BarbeirosPage({
               ))}
               {barbeiros.length === 0 && (
                 <tr>
-                  <td colSpan={4} className="p-6 text-center text-neutral-400">
+                  <td colSpan={unidades.length > 0 ? 5 : 4} className="p-6 text-center text-neutral-400">
                     Nenhum barbeiro cadastrado ainda.
                   </td>
                 </tr>
@@ -82,6 +93,7 @@ export default async function BarbeirosPage({
           <NovoBarbeiroForm
             criarBarbeiroAction={criarBarbeiroComTenant}
             servicosDisponiveis={servicos}
+            unidadesDisponiveis={unidades}
           />
         </div>
       </div>

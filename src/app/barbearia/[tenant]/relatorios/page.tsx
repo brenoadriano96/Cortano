@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { getTenantBySlug } from "@/lib/tenant";
+import { exigirAcessoGestao } from "@/lib/acesso-pagina";
 
 function inicioDoMes() {
   const d = new Date();
@@ -12,6 +13,7 @@ export default async function RelatoriosPage({
   params: Promise<{ tenant: string }>;
 }) {
   const { tenant: slug } = await params;
+  await exigirAcessoGestao(slug);
   const tenant = await getTenantBySlug(slug);
 
   const [barbeiros, servicos, agendamentosAtendidos] = await Promise.all([

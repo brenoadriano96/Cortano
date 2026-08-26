@@ -2,6 +2,8 @@
 
 import { prisma } from "@/lib/prisma";
 import { verificarLimitePlano } from "@/lib/planos";
+import { registrarAuditoria } from "@/lib/auditoria";
+import { auth } from "@/auth";
 import { revalidatePath } from "next/cache";
 import { PapelUsuario } from "@prisma/client";
 import bcrypt from "bcryptjs";
@@ -12,6 +14,7 @@ const barbeiroSchema = z.object({
   email: z.string().email("E-mail inválido"),
   comissaoPadrao: z.coerce.number().min(0).max(100).default(0),
   servicoIds: z.array(z.string()).optional().default([]),
+  unidadeId: z.string().optional(),
 });
 
 export type EstadoForm = { erro?: string } | undefined;
@@ -29,6 +32,7 @@ export async function criarBarbeiro(
     email: formData.get("email"),
     comissaoPadrao: formData.get("comissaoPadrao") || 0,
     servicoIds: formData.getAll("servicoIds"),
+    unidadeId: formData.get("unidadeId") || undefined,
   });
   if (!parsed.success) {
     return { erro: parsed.error.issues[0]?.message ?? "Dados inválidos" };
@@ -65,11 +69,25 @@ export async function criarBarbeiro(
       usuarioId: usuario.id,
       nome: parsed.data.nome,
       comissaoPadrao: parsed.data.comissaoPadrao,
+      unidadeId: parsed.data.unidadeId,
       servicos: {
         create: parsed.data.servicoIds.map((servicoId) => ({ servicoId })),
       },
     },
   });
+
+  // Seção 21: alteração administrativa (adicionar membro à equipe)
+  const session = await auth();
+  if (session?.user) {
+    await registrarAuditoria({
+      actorId: session.user.id,
+      tenantId,
+      action: "equipe.adicionar_barbeiro",
+      entityType: "Usuario",
+      entityId: usuario.id,
+      metadata: { nome: parsed.data.nome, email: parsed.data.email },
+    });
+  }
 
   revalidatePath(`/barbearia/${slug}/barbeiros`);
   return undefined;
@@ -80,5 +98,17 @@ export async function inativarBarbeiro(tenantId: string, slug: string, barbeiroI
     where: { id: barbeiroId, tenantId },
     data: { ativo: false },
   });
+
+  const session = await auth();
+  if (session?.user) {
+    await registrarAuditoria({
+      actorId: session.user.id,
+      tenantId,
+      action: "equipe.remover_barbeiro",
+      entityType: "Barbeiro",
+      entityId: barbeiroId,
+    });
+  }
+
   revalidatePath(`/barbearia/${slug}/barbeiros`);
 }

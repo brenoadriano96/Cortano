@@ -4,13 +4,16 @@ import { useActionState } from "react";
 import type { EstadoForm } from "./actions";
 
 type ServicoOpcao = { id: string; nome: string };
+type UnidadeOpcao = { id: string; nome: string };
 
 export function NovoBarbeiroForm({
   criarBarbeiroAction,
   servicosDisponiveis,
+  unidadesDisponiveis,
 }: {
   criarBarbeiroAction: (estado: EstadoForm, formData: FormData) => Promise<EstadoForm>;
   servicosDisponiveis: ServicoOpcao[];
+  unidadesDisponiveis: UnidadeOpcao[];
 }) {
   const [estado, formAction, pendente] = useActionState(criarBarbeiroAction, undefined);
 
@@ -62,6 +65,26 @@ export function NovoBarbeiroForm({
           className="w-full rounded-md border px-3 py-2 text-sm"
         />
       </div>
+
+      {unidadesDisponiveis.length > 0 && (
+        <div>
+          <label className="block text-xs text-neutral-500 mb-1" htmlFor="unidadeId">
+            Unidade
+          </label>
+          <select
+            id="unidadeId"
+            name="unidadeId"
+            className="w-full rounded-md border px-3 py-2 text-sm"
+          >
+            <option value="">Sem unidade específica</option>
+            {unidadesDisponiveis.map((u) => (
+              <option key={u.id} value={u.id}>
+                {u.nome}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
 
       {servicosDisponiveis.length > 0 && (
         <div>

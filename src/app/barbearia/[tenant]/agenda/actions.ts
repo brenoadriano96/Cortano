@@ -3,6 +3,7 @@
 import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
+import { validarDisponibilidade } from "@/lib/disponibilidade";
 
 export type EstadoForm = { erro?: string } | undefined;
 
@@ -45,17 +46,10 @@ export async function criarAgendamento(
   const inicio = new Date(`${data}T${hora}:00`);
   const fim = new Date(inicio.getTime() + duracaoTotalMin * 60_000);
 
-  // Checagem de conflito de horário para o barbeiro (mesma regra da API)
-  const conflito = await prisma.agendamento.findFirst({
-    where: {
-      tenantId,
-      barbeiroId,
-      status: { in: ["AGENDADO", "CONFIRMADO"] },
-      AND: [{ dataHoraInicio: { lt: fim } }, { dataHoraFim: { gt: inicio } }],
-    },
-  });
-  if (conflito) {
-    return { erro: "Este barbeiro já tem um agendamento nesse horário." };
+  // Seção 14: valida expediente, bloqueios de agenda e conflitos
+  const erroDisponibilidade = await validarDisponibilidade(tenantId, barbeiroId, inicio, fim);
+  if (erroDisponibilidade) {
+    return { erro: erroDisponibilidade };
   }
 
   await prisma.agendamento.create({
@@ -86,5 +80,57 @@ export async function atualizarStatusAgendamento(
     where: { id: agendamentoId, tenantId },
     data: { status: novoStatus },
   });
+  revalidatePath(`/barbearia/${slug}/agenda`);
+}
+
+const bloqueioSchema = z.object({
+  barbeiroId: z.string().min(1, "Selecione um barbeiro"),
+  data: z.string().min(1, "Informe a data"),
+  horaInicio: z.string().min(1, "Informe o início"),
+  horaFim: z.string().min(1, "Informe o fim"),
+  motivo: z.string().optional(),
+});
+
+export type EstadoBloqueio = { erro?: string } | undefined;
+
+export async function criarBloqueio(
+  tenantId: string,
+  slug: string,
+  _estado: EstadoBloqueio,
+  formData: FormData
+): Promise<EstadoBloqueio> {
+  const parsed = bloqueioSchema.safeParse({
+    barbeiroId: formData.get("barbeiroId"),
+    data: formData.get("data"),
+    horaInicio: formData.get("horaInicio"),
+    horaFim: formData.get("horaFim"),
+    motivo: formData.get("motivo") || undefined,
+  });
+  if (!parsed.success) {
+    return { erro: parsed.error.issues[0]?.message ?? "Dados inválidos" };
+  }
+
+  const inicio = new Date(`${parsed.data.data}T${parsed.data.horaInicio}:00`);
+  const fim = new Date(`${parsed.data.data}T${parsed.data.horaFim}:00`);
+  if (fim <= inicio) {
+    return { erro: "O horário de fim deve ser depois do início." };
+  }
+
+  await prisma.bloqueioAgenda.create({
+    data: {
+      tenantId,
+      barbeiroId: parsed.data.barbeiroId,
+      inicio,
+      fim,
+      motivo: parsed.data.motivo,
+    },
+  });
+
+  revalidatePath(`/barbearia/${slug}/agenda`);
+  return undefined;
+}
+
+export async function removerBloqueio(tenantId: string, slug: string, bloqueioId: string) {
+  await prisma.bloqueioAgenda.deleteMany({ where: { id: bloqueioId, tenantId } });
   revalidatePath(`/barbearia/${slug}/agenda`);
 }

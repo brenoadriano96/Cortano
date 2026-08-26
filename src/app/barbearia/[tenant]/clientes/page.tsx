@@ -1,5 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { getTenantBySlug } from "@/lib/tenant";
+import { auth } from "@/auth";
+import { getBarbeiroVinculado } from "@/lib/acesso-pagina";
 import { criarCliente, inativarCliente } from "./actions";
 import { NovoClienteForm } from "./novo-cliente-form";
 
@@ -11,8 +13,22 @@ export default async function ClientesPage({
   const { tenant: slug } = await params;
   const tenant = await getTenantBySlug(slug);
 
+  // Seção 4.4: Barbeiro só vê clientes relacionados aos seus próprios
+  // atendimentos, e não cadastra novos clientes (isso é do Atendente/Proprietário)
+  const session = await auth();
+  const barbeiroLogado =
+    session?.user.papel === "BARBEIRO"
+      ? await getBarbeiroVinculado(tenant.id, session.user.id)
+      : null;
+
   const clientes = await prisma.cliente.findMany({
-    where: { tenantId: tenant.id, ativo: true },
+    where: {
+      tenantId: tenant.id,
+      ativo: true,
+      ...(barbeiroLogado
+        ? { agendamentos: { some: { barbeiroId: barbeiroLogado.id } } }
+        : {}),
+    },
     orderBy: { createdAt: "desc" },
   });
 
@@ -27,14 +43,14 @@ export default async function ClientesPage({
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2 bg-white rounded-lg border">
+        <div className={barbeiroLogado ? "lg:col-span-3 bg-white rounded-lg border" : "lg:col-span-2 bg-white rounded-lg border"}>
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b text-left text-neutral-500">
                 <th className="p-3 font-medium">Nome</th>
                 <th className="p-3 font-medium">Telefone</th>
                 <th className="p-3 font-medium">E-mail</th>
-                <th className="p-3 font-medium"></th>
+                {!barbeiroLogado && <th className="p-3 font-medium"></th>}
               </tr>
             </thead>
             <tbody>
@@ -43,27 +59,31 @@ export default async function ClientesPage({
                   <td className="p-3 font-medium">{c.nome}</td>
                   <td className="p-3 text-neutral-600">{c.telefone ?? "—"}</td>
                   <td className="p-3 text-neutral-600">{c.email ?? "—"}</td>
-                  <td className="p-3 text-right">
-                    <form
-                      action={async () => {
-                        "use server";
-                        await inativarClienteComTenant(c.id);
-                      }}
-                    >
-                      <button
-                        type="submit"
-                        className="text-xs text-red-500 hover:underline"
+                  {!barbeiroLogado && (
+                    <td className="p-3 text-right">
+                      <form
+                        action={async () => {
+                          "use server";
+                          await inativarClienteComTenant(c.id);
+                        }}
                       >
-                        Remover
-                      </button>
-                    </form>
-                  </td>
+                        <button
+                          type="submit"
+                          className="text-xs text-red-500 hover:underline"
+                        >
+                          Remover
+                        </button>
+                      </form>
+                    </td>
+                  )}
                 </tr>
               ))}
               {clientes.length === 0 && (
                 <tr>
-                  <td colSpan={4} className="p-6 text-center text-neutral-400">
-                    Nenhum cliente cadastrado ainda.
+                  <td colSpan={barbeiroLogado ? 3 : 4} className="p-6 text-center text-neutral-400">
+                    {barbeiroLogado
+                      ? "Você ainda não atendeu nenhum cliente."
+                      : "Nenhum cliente cadastrado ainda."}
                   </td>
                 </tr>
               )}
@@ -71,9 +91,11 @@ export default async function ClientesPage({
           </table>
         </div>
 
-        <div>
-          <NovoClienteForm criarClienteAction={criarClienteComTenant} />
-        </div>
+        {!barbeiroLogado && (
+          <div>
+            <NovoClienteForm criarClienteAction={criarClienteComTenant} />
+          </div>
+        )}
       </div>
     </div>
   );

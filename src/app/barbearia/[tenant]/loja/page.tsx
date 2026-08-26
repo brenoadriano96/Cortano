@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { getTenantBySlug } from "@/lib/tenant";
+import { exigirAcessoGestao } from "@/lib/acesso-pagina";
 import { criarProduto, atualizarEstoque, inativarProduto } from "./actions";
 import { NovoProdutoForm } from "./novo-produto-form";
 import { EditorEstoque } from "./editor-estoque";
@@ -10,6 +11,7 @@ export default async function LojaPage({
   params: Promise<{ tenant: string }>;
 }) {
   const { tenant: slug } = await params;
+  await exigirAcessoGestao(slug);
   const tenant = await getTenantBySlug(slug);
 
   const produtos = await prisma.produto.findMany({

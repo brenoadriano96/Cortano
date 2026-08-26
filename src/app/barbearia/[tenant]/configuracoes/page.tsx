@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { getTenantBySlug } from "@/lib/tenant";
+import { exigirAcessoGestao } from "@/lib/acesso-pagina";
 import { criarCupom, inativarCupom, converterIndicacao, atualizarBranding } from "./actions";
 import { NovoCupomForm } from "./novo-cupom-form";
 import { BotaoConverterIndicacao } from "./botao-converter-indicacao";
@@ -11,6 +12,7 @@ export default async function ConfiguracoesPage({
   params: Promise<{ tenant: string }>;
 }) {
   const { tenant: slug } = await params;
+  await exigirAcessoGestao(slug);
   const tenant = await getTenantBySlug(slug);
 
   const [cupons, indicacoes] = await Promise.all([

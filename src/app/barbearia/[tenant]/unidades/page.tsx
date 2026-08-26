@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { getTenantBySlug } from "@/lib/tenant";
+import { exigirAcessoGestao } from "@/lib/acesso-pagina";
 import { criarUnidade, inativarUnidade } from "./actions";
 import { NovaUnidadeForm } from "./nova-unidade-form";
 
@@ -9,6 +10,7 @@ export default async function UnidadesPage({
   params: Promise<{ tenant: string }>;
 }) {
   const { tenant: slug } = await params;
+  await exigirAcessoGestao(slug);
   const tenant = await getTenantBySlug(slug);
 
   const unidades = await prisma.unidade.findMany({

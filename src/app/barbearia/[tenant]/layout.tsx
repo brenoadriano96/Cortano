@@ -1,7 +1,9 @@
 import { acessoBusinessLiberado, getTenantBySlug } from "@/lib/tenant";
 import { auth, signOut } from "@/auth";
+import { temAcessoGestao } from "@/lib/rbac";
 import { ReactNode } from "react";
 import { redirect } from "next/navigation";
+import { headers } from "next/headers";
 
 export default async function BarbeariaLayout({
   children,
@@ -16,6 +18,21 @@ export default async function BarbeariaLayout({
   // Seção 11: bloquear acesso administrativo se suspensa/cancelada
   if (!acessoBusinessLiberado(tenant.status)) {
     redirect(`/regularizacao?motivo=${tenant.status.toLowerCase()}`);
+  }
+
+  // Rota pública de auto-cadastro do cliente (seção 4.6: "criar conta") não
+  // passa pela guarda de autenticação abaixo — é exatamente para quem
+  // ainda não tem conta.
+  const headersList = await headers();
+  const pathname = headersList.get("x-pathname") ?? "";
+  const ehCadastroPublico = pathname.endsWith("/cadastro-cliente");
+
+  if (ehCadastroPublico) {
+    return (
+      <div style={{ "--cor-primaria": tenant.corPrimaria ?? "#171717" } as React.CSSProperties}>
+        {children}
+      </div>
+    );
   }
 
   // Autenticação + isolamento de tenant (seção 3 e 20): só entra quem
@@ -74,14 +91,20 @@ export default async function BarbeariaLayout({
               { href: "dashboard", label: "Início" },
               { href: "agenda", label: "Agenda" },
               { href: "clientes", label: "Clientes" },
-              { href: "barbeiros", label: "Equipe" },
-              { href: "unidades", label: "Unidades" },
               { href: "servicos", label: "Serviços" },
-              { href: "assinaturas", label: "Assinaturas" },
-              { href: "loja", label: "Loja" },
-              { href: "financeiro", label: "Financeiro" },
-              { href: "relatorios", label: "Relatórios" },
-              { href: "configuracoes", label: "Configurações" },
+              // Itens abaixo exigem acesso de gestão (Proprietário/Gerente —
+              // seção 4.2/4.3). Barbeiro e Atendente não veem no menu.
+              ...(temAcessoGestao(session.user.papel)
+                ? [
+                    { href: "barbeiros", label: "Equipe" },
+                    { href: "unidades", label: "Unidades" },
+                    { href: "assinaturas", label: "Assinaturas" },
+                    { href: "loja", label: "Loja" },
+                    { href: "financeiro", label: "Financeiro" },
+                    { href: "relatorios", label: "Relatórios" },
+                    { href: "configuracoes", label: "Configurações" },
+                  ]
+                : []),
             ]
         ).map((item) => (
           <a
