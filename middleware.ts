@@ -10,6 +10,12 @@ export function middleware(req: NextRequest) {
   // Remove a porta para comparação (ex: localhost:3000)
   const currentHost = hostname.replace(`.${ROOT_DOMAIN}`, "");
 
+  // Propaga o pathname para os Server Components via header de REQUEST
+  // (headers de resposta não chegam ao pipeline de renderização — é preciso
+  // usar a API `request.headers` do NextResponse.next() para isso).
+  const requestHeaders = new Headers(req.headers);
+  requestHeaders.set("x-pathname", url.pathname);
+
   // Landing page / super admin: acesso direto pelo domínio raiz
   // (cobre também o caso de ROOT_DOMAIN não configurado corretamente:
   // se currentHost === hostname, é porque nenhum subdomínio foi removido,
@@ -19,22 +25,21 @@ export function middleware(req: NextRequest) {
     hostname === `www.${ROOT_DOMAIN}` ||
     currentHost === hostname
   ) {
-    return NextResponse.next();
+    return NextResponse.next({ request: { headers: requestHeaders } });
   }
 
   // Caminho /admin sempre vai para o Super Admin, independente de subdomínio
   if (url.pathname.startsWith("/admin")) {
-    return NextResponse.next();
+    return NextResponse.next({ request: { headers: requestHeaders } });
   }
 
   // Qualquer outro subdomínio é tratado como slug de uma barbearia (tenant)
   const tenantSlug = currentHost;
+  requestHeaders.set("x-tenant-slug", tenantSlug);
 
   // Tela de regularização tem que ficar acessível mesmo com tenant suspenso
   if (url.pathname.startsWith("/regularizacao")) {
-    const passthrough = NextResponse.next();
-    passthrough.headers.set("x-tenant-slug", tenantSlug);
-    return passthrough;
+    return NextResponse.next({ request: { headers: requestHeaders } });
   }
 
   // NOTA: a checagem completa de status (SUSPENDED/CANCELLED bloqueando
@@ -43,11 +48,10 @@ export function middleware(req: NextRequest) {
   // roda no Edge Runtime e não deve depender de round-trip pesado ao DB
   // a cada request. O middleware apenas resolve o tenant e propaga o slug.
 
-  const response = NextResponse.rewrite(
-    new URL(`/barbearia/${tenantSlug}${url.pathname}`, req.url)
+  return NextResponse.rewrite(
+    new URL(`/barbearia/${tenantSlug}${url.pathname}`, req.url),
+    { request: { headers: requestHeaders } }
   );
-  response.headers.set("x-tenant-slug", tenantSlug);
-  return response;
 }
 
 export const config = {

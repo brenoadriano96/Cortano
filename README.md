@@ -265,6 +265,44 @@ integração atual serve como base funcional completa (checkout + webhook);
 trocar de gateway no futuro significa reescrever `src/lib/stripe.ts` e as
 duas rotas de API, mantendo o mesmo modelo de dados.
 
+## Auditoria de gaps e correções (pós-revisão completa)
+
+Após revisão do documento de arquitetura original contra o que estava
+implementado, foram identificados e corrigidos os seguintes gaps de
+**Prioridade Alta**:
+
+- **RBAC aplicado de verdade** — antes só existia o mapa de permissões
+  (`src/lib/rbac.ts`) sem uso real. Agora: menu e acesso a páginas variam
+  por papel (`src/lib/acesso-pagina.ts`). Financeiro, Configurações,
+  Relatórios, Unidades, gestão de Equipe/Loja/Pedidos são exclusivos de
+  Proprietário/Gerente/Super Admin (seção 4.2/4.3). Barbeiro só vê a
+  própria agenda e os próprios clientes atendidos, sem formulário de criar
+  cliente/agendamento para outros (seção 4.4)
+- **Auditoria expandida ao Business** — antes só o Cortano Admin gerava
+  logs. Agora ações administrativas dentro da barbearia também são
+  auditadas: adicionar/remover barbeiro, alterar branding, criar cupom,
+  converter indicação (seção 21)
+- **Self-signup do cliente** (seção 4.6: "criar conta") —
+  `/barbearia/[slug]/cadastro-cliente`, rota pública que não passa pela
+  guarda de autenticação do layout (exceção tratada via header de pathname
+  propagado pelo middleware). Login (`/login?tenant=slug`) mostra link
+  "Criar conta" quando o parâmetro `tenant` está presente
+- **Validação de horário de expediente + bloqueio de agenda** (seção 14)
+  — `src/lib/disponibilidade.ts` centraliza a checagem: expediente
+  cadastrado (`HorarioTrabalho`), bloqueios (`BloqueioAgenda` — novo model,
+  para folga/almoço/feriado) e conflito com outro agendamento. Usado tanto
+  na Agenda do negócio quanto no autoagendamento do cliente. Bloqueios são
+  geridos na própria tela de Agenda, restrito a quem tem acesso de gestão
+
+**Gaps identificados mas ainda pendentes** (Prioridade Média/Baixa,
+registrados para próxima rodada): perfil detalhado do cliente com
+histórico completo, reagendamento (só existe cancelar), agenda semanal,
+página "Pagamentos" separada no Client, upload real de imagem, comissão
+por serviço editável, categorias de produto normalizadas, métricas de
+churn/novos clientes no Admin. Cobrança automática da barbearia
+(Barbearia → Cortano) foi decidida como **fora de escopo por ora** — sem
+cobrança recorrente real pelo site nesta fase.
+
 ## Decisões importantes em aberto
 
 - **Gateway de pagamento**: Stripe já integrado (Checkout + Webhook) como base
