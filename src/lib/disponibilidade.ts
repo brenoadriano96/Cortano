@@ -13,7 +13,8 @@ export async function validarDisponibilidade(
   tenantId: string,
   barbeiroId: string,
   inicio: Date,
-  fim: Date
+  fim: Date,
+  ignorarAgendamentoId?: string
 ): Promise<string | null> {
   const diaSemana = inicio.getDay();
   const horaInicioStr = inicio.toTimeString().slice(0, 5); // "HH:MM"
@@ -46,6 +47,7 @@ export async function validarDisponibilidade(
       tenantId,
       barbeiroId,
       status: { in: ["AGENDADO", "CONFIRMADO"] },
+      ...(ignorarAgendamentoId ? { id: { not: ignorarAgendamentoId } } : {}),
       AND: [{ dataHoraInicio: { lt: fim } }, { dataHoraFim: { gt: inicio } }],
     },
   });
