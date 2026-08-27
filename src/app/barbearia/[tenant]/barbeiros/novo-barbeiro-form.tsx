@@ -2,6 +2,7 @@
 
 import { useActionState } from "react";
 import type { EstadoForm } from "./actions";
+import { UploadImagem } from "@/components/upload-imagem";
 
 type ServicoOpcao = { id: string; nome: string };
 type UnidadeOpcao = { id: string; nome: string };
@@ -20,6 +21,8 @@ export function NovoBarbeiroForm({
   return (
     <form action={formAction} className="bg-white rounded-lg border p-4 space-y-3">
       <h2 className="font-medium">Novo barbeiro</h2>
+
+      <UploadImagem name="fotoUrl" label="Foto do barbeiro" />
 
       <div>
         <label className="block text-xs text-neutral-500 mb-1" htmlFor="nome">

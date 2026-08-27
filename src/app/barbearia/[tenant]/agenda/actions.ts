@@ -83,6 +83,64 @@ export async function atualizarStatusAgendamento(
   revalidatePath(`/barbearia/${slug}/agenda`);
 }
 
+const reagendarSchema = z.object({
+  data: z.string().min(1, "Informe a data"),
+  hora: z.string().min(1, "Informe o horário"),
+});
+
+export type EstadoReagendamento = { erro?: string } | undefined;
+
+/**
+ * Reagendamento (seção 14): mantém cliente/barbeiro/serviços, só muda o
+ * horário — revalidando expediente, bloqueios e conflitos (excluindo o
+ * próprio agendamento da checagem de conflito).
+ */
+export async function reagendarAgendamento(
+  tenantId: string,
+  slug: string,
+  agendamentoId: string,
+  _estado: EstadoReagendamento,
+  formData: FormData
+): Promise<EstadoReagendamento> {
+  const parsed = reagendarSchema.safeParse({
+    data: formData.get("data"),
+    hora: formData.get("hora"),
+  });
+  if (!parsed.success) {
+    return { erro: parsed.error.issues[0]?.message ?? "Dados inválidos" };
+  }
+
+  const agendamento = await prisma.agendamento.findFirst({
+    where: { id: agendamentoId, tenantId },
+  });
+  if (!agendamento) {
+    return { erro: "Agendamento não encontrado." };
+  }
+
+  const duracaoMs = agendamento.dataHoraFim.getTime() - agendamento.dataHoraInicio.getTime();
+  const novoInicio = new Date(`${parsed.data.data}T${parsed.data.hora}:00`);
+  const novoFim = new Date(novoInicio.getTime() + duracaoMs);
+
+  const erroDisponibilidade = await validarDisponibilidade(
+    tenantId,
+    agendamento.barbeiroId,
+    novoInicio,
+    novoFim,
+    agendamentoId
+  );
+  if (erroDisponibilidade) {
+    return { erro: erroDisponibilidade };
+  }
+
+  await prisma.agendamento.update({
+    where: { id: agendamentoId },
+    data: { dataHoraInicio: novoInicio, dataHoraFim: novoFim, status: "AGENDADO" },
+  });
+
+  revalidatePath(`/barbearia/${slug}/agenda`);
+  return undefined;
+}
+
 const bloqueioSchema = z.object({
   barbeiroId: z.string().min(1, "Selecione um barbeiro"),
   data: z.string().min(1, "Informe a data"),

@@ -1,8 +1,9 @@
 import { prisma } from "@/lib/prisma";
 import { getTenantBySlug } from "@/lib/tenant";
 import { exigirAcessoGestao } from "@/lib/acesso-pagina";
-import { criarBarbeiro, inativarBarbeiro } from "./actions";
+import { criarBarbeiro, inativarBarbeiro, atualizarComissaoServico } from "./actions";
 import { NovoBarbeiroForm } from "./novo-barbeiro-form";
+import { EditorComissao } from "./editor-comissao";
 
 export default async function BarbeirosPage({
   params,
@@ -16,7 +17,7 @@ export default async function BarbeirosPage({
   const [barbeiros, servicos, unidades] = await Promise.all([
     prisma.barbeiro.findMany({
       where: { tenantId: tenant.id, ativo: true },
-      include: { unidade: true },
+      include: { unidade: true, servicos: { include: { servico: true } } },
       orderBy: { createdAt: "desc" },
     }),
     prisma.servico.findMany({
@@ -31,6 +32,7 @@ export default async function BarbeirosPage({
 
   const criarBarbeiroComTenant = criarBarbeiro.bind(null, tenant.id, slug);
   const inativarBarbeiroComTenant = inativarBarbeiro.bind(null, tenant.id, slug);
+  const atualizarComissaoComTenant = atualizarComissaoServico.bind(null, tenant.id, slug);
 
   return (
     <div>
@@ -40,53 +42,63 @@ export default async function BarbeirosPage({
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2 bg-white rounded-lg border">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b text-left text-neutral-500">
-                <th className="p-3 font-medium">Nome</th>
-                {unidades.length > 0 && <th className="p-3 font-medium">Unidade</th>}
-                <th className="p-3 font-medium">Especialidades</th>
-                <th className="p-3 font-medium">Comissão</th>
-                <th className="p-3 font-medium"></th>
-              </tr>
-            </thead>
-            <tbody>
-              {barbeiros.map((b) => (
-                <tr key={b.id} className="border-b last:border-0">
-                  <td className="p-3 font-medium">{b.nome}</td>
-                  {unidades.length > 0 && (
-                    <td className="p-3 text-neutral-600">{b.unidade?.nome ?? "—"}</td>
+        <div className="lg:col-span-2 space-y-3">
+          {barbeiros.map((b) => (
+            <div key={b.id} className="bg-white rounded-lg border p-4">
+              <div className="flex items-start justify-between">
+                <div className="flex items-center gap-3">
+                  {b.fotoUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={b.fotoUrl}
+                      alt=""
+                      className="h-10 w-10 rounded-full object-cover border"
+                    />
+                  ) : (
+                    <div className="h-10 w-10 rounded-full border bg-neutral-50" />
                   )}
-                  <td className="p-3 text-neutral-600">
-                    {b.especialidades.length > 0 ? b.especialidades.join(", ") : "—"}
-                  </td>
-                  <td className="p-3 text-neutral-600">
-                    {Number(b.comissaoPadrao).toFixed(0)}%
-                  </td>
-                  <td className="p-3 text-right">
-                    <form
-                      action={async () => {
-                        "use server";
-                        await inativarBarbeiroComTenant(b.id);
-                      }}
-                    >
-                      <button type="submit" className="text-xs text-red-500 hover:underline">
-                        Remover
-                      </button>
-                    </form>
-                  </td>
-                </tr>
-              ))}
-              {barbeiros.length === 0 && (
-                <tr>
-                  <td colSpan={unidades.length > 0 ? 5 : 4} className="p-6 text-center text-neutral-400">
-                    Nenhum barbeiro cadastrado ainda.
-                  </td>
-                </tr>
+                  <div>
+                    <p className="font-medium">{b.nome}</p>
+                    <p className="text-xs text-neutral-400">
+                      {b.unidade?.nome ?? "Sem unidade específica"} · Comissão padrão:{" "}
+                      {Number(b.comissaoPadrao).toFixed(0)}%
+                    </p>
+                  </div>
+                </div>
+                <form
+                  action={async () => {
+                    "use server";
+                    await inativarBarbeiroComTenant(b.id);
+                  }}
+                >
+                  <button type="submit" className="text-xs text-red-500 hover:underline">
+                    Remover
+                  </button>
+                </form>
+              </div>
+
+              {b.servicos.length > 0 && (
+                <div className="mt-3 pt-3 border-t space-y-1.5">
+                  <p className="text-xs text-neutral-500 mb-1">Comissão por serviço:</p>
+                  {b.servicos.map((sb) => (
+                    <EditorComissao
+                      key={sb.id}
+                      barbeiroId={b.id}
+                      servicoId={sb.servicoId}
+                      servicoNome={sb.servico.nome}
+                      comissaoAtual={sb.comissao ? Number(sb.comissao) : null}
+                      atualizarComissaoAction={atualizarComissaoComTenant}
+                    />
+                  ))}
+                </div>
               )}
-            </tbody>
-          </table>
+            </div>
+          ))}
+          {barbeiros.length === 0 && (
+            <div className="bg-white rounded-lg border p-6 text-center text-neutral-400">
+              Nenhum barbeiro cadastrado ainda.
+            </div>
+          )}
         </div>
 
         <div>

@@ -83,6 +83,7 @@ export default async function BarbeariaLayout({
               { href: "cliente/agendar", label: "Agendar" },
               { href: "cliente/agendamentos", label: "Agendamentos" },
               { href: "cliente/meu-plano", label: "Meu Plano" },
+              { href: "cliente/pagamentos", label: "Pagamentos" },
               { href: "cliente/loja", label: "Loja" },
               { href: "cliente/pedidos", label: "Pedidos" },
               { href: "cliente/perfil", label: "Perfil" },

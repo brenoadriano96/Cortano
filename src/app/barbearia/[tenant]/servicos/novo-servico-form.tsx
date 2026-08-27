@@ -2,6 +2,7 @@
 
 import { useActionState } from "react";
 import type { EstadoForm } from "./actions";
+import { UploadImagem } from "@/components/upload-imagem";
 
 export function NovoServicoForm({
   criarServicoAction,
@@ -13,6 +14,8 @@ export function NovoServicoForm({
   return (
     <form action={formAction} className="bg-white rounded-lg border p-4 space-y-3">
       <h2 className="font-medium">Novo serviço</h2>
+
+      <UploadImagem name="fotoUrl" label="Foto do serviço" />
 
       <div>
         <label className="block text-xs text-neutral-500 mb-1" htmlFor="nome">

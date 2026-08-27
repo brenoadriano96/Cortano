@@ -12,12 +12,34 @@ export type EstadoForm = { erro?: string } | undefined;
 
 const produtoSchema = z.object({
   nome: z.string().min(2, "Nome muito curto"),
-  categoria: z.string().min(1, "Informe a categoria"),
+  categoriaId: z.string().min(1, "Selecione uma categoria"),
   sku: z.string().min(1, "Informe o SKU"),
   preco: z.coerce.number().positive("Preço deve ser maior que zero"),
   estoque: z.coerce.number().int().min(0, "Estoque não pode ser negativo"),
   descricao: z.string().optional(),
+  fotoUrl: z.string().optional(),
 });
+
+export async function criarCategoriaProduto(
+  tenantId: string,
+  slug: string,
+  _estado: EstadoForm,
+  formData: FormData
+): Promise<EstadoForm> {
+  const nome = (formData.get("nomeCategoria") as string)?.trim();
+  if (!nome || nome.length < 2) {
+    return { erro: "Nome da categoria muito curto" };
+  }
+
+  const existente = await prisma.categoriaProduto.findFirst({ where: { tenantId, nome } });
+  if (existente) {
+    return { erro: "Já existe uma categoria com este nome." };
+  }
+
+  await prisma.categoriaProduto.create({ data: { tenantId, nome } });
+  revalidatePath(`/barbearia/${slug}/loja`);
+  return undefined;
+}
 
 export async function criarProduto(
   tenantId: string,
@@ -27,14 +49,22 @@ export async function criarProduto(
 ): Promise<EstadoForm> {
   const parsed = produtoSchema.safeParse({
     nome: formData.get("nome"),
-    categoria: formData.get("categoria"),
+    categoriaId: formData.get("categoriaId"),
     sku: formData.get("sku"),
     preco: formData.get("preco"),
     estoque: formData.get("estoque"),
     descricao: formData.get("descricao") || undefined,
+    fotoUrl: formData.get("fotoUrl") || undefined,
   });
   if (!parsed.success) {
     return { erro: parsed.error.issues[0]?.message ?? "Dados inválidos" };
+  }
+
+  const categoria = await prisma.categoriaProduto.findFirst({
+    where: { id: parsed.data.categoriaId, tenantId },
+  });
+  if (!categoria) {
+    return { erro: "Categoria inválida." };
   }
 
   // Seção 9: checar limite do plano antes de criar
@@ -51,7 +81,17 @@ export async function criarProduto(
   }
 
   await prisma.produto.create({
-    data: { tenantId, ...parsed.data },
+    data: {
+      tenantId,
+      nome: parsed.data.nome,
+      categoria: categoria.nome,
+      categoriaId: categoria.id,
+      sku: parsed.data.sku,
+      preco: parsed.data.preco,
+      estoque: parsed.data.estoque,
+      descricao: parsed.data.descricao,
+      fotoUrl: parsed.data.fotoUrl || undefined,
+    },
   });
 
   revalidatePath(`/barbearia/${slug}/loja`);

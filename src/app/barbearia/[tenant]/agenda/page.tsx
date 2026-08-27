@@ -3,10 +3,18 @@ import { getTenantBySlug } from "@/lib/tenant";
 import { auth } from "@/auth";
 import { getBarbeiroVinculado } from "@/lib/acesso-pagina";
 import { temAcessoGestao } from "@/lib/rbac";
-import { criarAgendamento, atualizarStatusAgendamento, criarBloqueio, removerBloqueio } from "./actions";
+import {
+  criarAgendamento,
+  atualizarStatusAgendamento,
+  criarBloqueio,
+  removerBloqueio,
+  reagendarAgendamento,
+} from "./actions";
 import { NovoAgendamentoForm } from "./novo-agendamento-form";
 import { AcoesAgendamento } from "./acoes-agendamento";
 import { BloqueioForm } from "./bloqueio-form";
+import { ReagendarForm } from "./reagendar-form";
+import { VisaoSemanal } from "./visao-semanal";
 
 const STATUS_LABEL: Record<string, string> = {
   AGENDADO: "Agendado",
@@ -33,10 +41,10 @@ export default async function AgendaPage({
   searchParams,
 }: {
   params: Promise<{ tenant: string }>;
-  searchParams: Promise<{ data?: string; unidade?: string }>;
+  searchParams: Promise<{ data?: string; unidade?: string; modo?: string }>;
 }) {
   const { tenant: slug } = await params;
-  const { data: dataParam, unidade: unidadeParam } = await searchParams;
+  const { data: dataParam, unidade: unidadeParam, modo } = await searchParams;
   const tenant = await getTenantBySlug(slug);
 
   // Seção 4.4: Barbeiro só pode ver a própria agenda, nunca a dos colegas
@@ -47,6 +55,19 @@ export default async function AgendaPage({
       : null;
 
   const dataSelecionada = dataParam ?? formatarDataISO(new Date());
+
+  if (modo === "semana") {
+    return (
+      <VisaoSemanal
+        tenantId={tenant.id}
+        slug={slug}
+        dataSelecionada={dataSelecionada}
+        barbeiroLogadoId={barbeiroLogado?.id}
+        unidadeParam={unidadeParam}
+      />
+    );
+  }
+
   const inicioDia = new Date(`${dataSelecionada}T00:00:00`);
   const fimDia = new Date(`${dataSelecionada}T23:59:59`);
 
@@ -91,6 +112,10 @@ export default async function AgendaPage({
   const removerBloqueioComTenant = removerBloqueio.bind(null, tenant.id, slug);
   const podeGerenciar = session ? temAcessoGestao(session.user.papel) : false;
 
+  function reagendarComTenant(agendamentoId: string) {
+    return reagendarAgendamento.bind(null, tenant.id, slug, agendamentoId);
+  }
+
   return (
     <div>
       <div className="flex items-center justify-between mb-6 flex-wrap gap-3">
@@ -123,6 +148,20 @@ export default async function AgendaPage({
             Ver dia
           </button>
         </form>
+      </div>
+      <div className="flex gap-2 mb-4">
+        <a
+          href={`?data=${dataSelecionada}${unidadeParam ? `&unidade=${unidadeParam}` : ""}`}
+          className="text-xs px-3 py-1 rounded-full bg-neutral-900 text-white"
+        >
+          Dia
+        </a>
+        <a
+          href={`?data=${dataSelecionada}&modo=semana${unidadeParam ? `&unidade=${unidadeParam}` : ""}`}
+          className="text-xs px-3 py-1 rounded-full bg-neutral-100 text-neutral-600 hover:bg-neutral-200"
+        >
+          Semana
+        </a>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -198,6 +237,9 @@ export default async function AgendaPage({
                         >
                           {STATUS_LABEL[a.status]}
                         </span>
+                        {(a.status === "AGENDADO" || a.status === "CONFIRMADO") && (
+                          <ReagendarForm reagendarAction={reagendarComTenant(a.id)} />
+                        )}
                         <AcoesAgendamento
                           agendamentoId={a.id}
                           statusAtual={a.status}

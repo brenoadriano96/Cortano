@@ -1,8 +1,9 @@
 import { prisma } from "@/lib/prisma";
 import { getTenantBySlug } from "@/lib/tenant";
 import { getClienteAtual } from "@/lib/cliente-atual";
-import { cancelarAgendamentoCliente } from "./actions";
+import { cancelarAgendamentoCliente, reagendarPeloCliente } from "./actions";
 import { BotaoCancelar } from "./botao-cancelar";
+import { ReagendarClienteForm } from "./reagendar-form";
 
 const STATUS_LABEL: Record<string, string> = {
   AGENDADO: "Agendado",
@@ -38,6 +39,10 @@ export default async function ClienteAgendamentosPage({
     cliente.id
   );
 
+  function reagendarComContexto(agendamentoId: string) {
+    return reagendarPeloCliente.bind(null, tenant.id, slug, cliente.id, agendamentoId);
+  }
+
   return (
     <div>
       <h1 className="text-2xl font-semibold mb-6">Meus agendamentos</h1>
@@ -46,7 +51,7 @@ export default async function ClienteAgendamentosPage({
         {agendamentos.map((a) => {
           const podeCancelar = a.status === "AGENDADO" || a.status === "CONFIRMADO";
           return (
-            <div key={a.id} className="p-4 flex items-center justify-between gap-4">
+            <div key={a.id} className="p-4 flex items-center justify-between gap-4 flex-wrap">
               <div>
                 <p className="text-sm font-medium">
                   {a.dataHoraInicio.toLocaleDateString("pt-BR", {
@@ -64,8 +69,11 @@ export default async function ClienteAgendamentosPage({
                   {a.servicos.map((s) => s.servico.nome).join(", ")} com {a.barbeiro.nome}
                 </p>
               </div>
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-3 flex-wrap">
                 <span className="text-xs text-neutral-500">{STATUS_LABEL[a.status]}</span>
+                {podeCancelar && (
+                  <ReagendarClienteForm reagendarAction={reagendarComContexto(a.id)} />
+                )}
                 {podeCancelar && (
                   <BotaoCancelar agendamentoId={a.id} cancelarAction={cancelarComContexto} />
                 )}

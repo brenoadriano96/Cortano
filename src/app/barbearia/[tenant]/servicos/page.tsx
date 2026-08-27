@@ -45,7 +45,21 @@ export default async function ServicosPage({
             <tbody>
               {servicos.map((s) => (
                 <tr key={s.id} className="border-b last:border-0">
-                  <td className="p-3 font-medium">{s.nome}</td>
+                  <td className="p-3 font-medium">
+                    <div className="flex items-center gap-2">
+                      {s.fotoUrl ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src={s.fotoUrl}
+                          alt=""
+                          className="h-8 w-8 rounded object-cover border"
+                        />
+                      ) : (
+                        <div className="h-8 w-8 rounded border bg-neutral-50" />
+                      )}
+                      {s.nome}
+                    </div>
+                  </td>
                   <td className="p-3 text-neutral-600">
                     R$ {Number(s.preco).toFixed(2)}
                   </td>

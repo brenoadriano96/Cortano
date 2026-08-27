@@ -56,7 +56,14 @@ export default async function ClientesPage({
             <tbody>
               {clientes.map((c) => (
                 <tr key={c.id} className="border-b last:border-0">
-                  <td className="p-3 font-medium">{c.nome}</td>
+                  <td className="p-3 font-medium">
+                    <a
+                      href={`/barbearia/${slug}/clientes/${c.id}`}
+                      className="hover:underline"
+                    >
+                      {c.nome}
+                    </a>
+                  </td>
                   <td className="p-3 text-neutral-600">{c.telefone ?? "—"}</td>
                   <td className="p-3 text-neutral-600">{c.email ?? "—"}</td>
                   {!barbeiroLogado && (

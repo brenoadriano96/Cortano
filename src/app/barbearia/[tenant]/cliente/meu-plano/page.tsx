@@ -110,22 +110,12 @@ export default async function ClienteMeuPlanoPage({
         </div>
       </div>
 
-      {assinatura.cobrancas.length > 0 && (
-        <div className="bg-white rounded-lg border p-4">
-          <p className="text-sm font-medium mb-3">Últimos pagamentos</p>
-          <div className="space-y-2">
-            {assinatura.cobrancas.map((c) => (
-              <div key={c.id} className="flex items-center justify-between text-sm">
-                <span className="text-neutral-500">
-                  {c.dataVencimento.toLocaleDateString("pt-BR")}
-                </span>
-                <span>R$ {Number(c.valor).toFixed(2)}</span>
-                <span className="text-xs text-neutral-400">{c.status}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
+      <a
+        href={`/barbearia/${slug}/cliente/pagamentos`}
+        className="text-sm text-neutral-900 hover:underline"
+      >
+        Ver histórico de pagamentos →
+      </a>
     </div>
   );
 }

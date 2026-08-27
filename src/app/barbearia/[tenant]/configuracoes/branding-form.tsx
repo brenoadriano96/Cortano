@@ -2,6 +2,7 @@
 
 import { useActionState } from "react";
 import type { EstadoForm } from "./actions";
+import { UploadImagem } from "@/components/upload-imagem";
 
 export function BrandingForm({
   atualizarBrandingAction,
@@ -36,17 +37,19 @@ export function BrandingForm({
 
       <div>
         <label className="block text-xs text-neutral-500 mb-1" htmlFor="logoUrl">
-          URL do logo
+          URL do logo (opcional, se não fizer upload)
         </label>
         <input
           id="logoUrl"
-          name="logoUrl"
+          name="logoUrlTexto"
           type="url"
           defaultValue={logoAtual ?? ""}
           placeholder="https://..."
           className="w-full rounded-md border px-3 py-2 text-sm"
         />
       </div>
+
+      <UploadImagem name="logoUrl" label="Ou envie um arquivo de logo" valorAtual={logoAtual} />
 
       {estado?.erro && <p className="text-red-500 text-xs">{estado.erro}</p>}
 

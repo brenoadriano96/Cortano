@@ -15,6 +15,7 @@ const barbeiroSchema = z.object({
   comissaoPadrao: z.coerce.number().min(0).max(100).default(0),
   servicoIds: z.array(z.string()).optional().default([]),
   unidadeId: z.string().optional(),
+  fotoUrl: z.string().optional(),
 });
 
 export type EstadoForm = { erro?: string } | undefined;
@@ -33,6 +34,7 @@ export async function criarBarbeiro(
     comissaoPadrao: formData.get("comissaoPadrao") || 0,
     servicoIds: formData.getAll("servicoIds"),
     unidadeId: formData.get("unidadeId") || undefined,
+    fotoUrl: formData.get("fotoUrl") || undefined,
   });
   if (!parsed.success) {
     return { erro: parsed.error.issues[0]?.message ?? "Dados inválidos" };
@@ -70,6 +72,7 @@ export async function criarBarbeiro(
       nome: parsed.data.nome,
       comissaoPadrao: parsed.data.comissaoPadrao,
       unidadeId: parsed.data.unidadeId,
+      fotoUrl: parsed.data.fotoUrl || undefined,
       servicos: {
         create: parsed.data.servicoIds.map((servicoId) => ({ servicoId })),
       },
@@ -109,6 +112,39 @@ export async function inativarBarbeiro(tenantId: string, slug: string, barbeiroI
       entityId: barbeiroId,
     });
   }
+
+  revalidatePath(`/barbearia/${slug}/barbeiros`);
+}
+
+/**
+ * Comissão por serviço (seção 15: "comissão"), sobrescrevendo a comissão
+ * padrão do barbeiro para um serviço específico — ex: 40% padrão, mas 50%
+ * para "Pigmentação" por ser um serviço mais especializado.
+ */
+export async function atualizarComissaoServico(
+  tenantId: string,
+  slug: string,
+  barbeiroId: string,
+  servicoId: string,
+  comissao: number
+) {
+  if (comissao < 0 || comissao > 100) return;
+
+  // Confirma que o barbeiro e o serviço pertencem a este tenant antes de tocar
+  const vinculo = await prisma.servicoBarbeiro.findFirst({
+    where: {
+      barbeiroId,
+      servicoId,
+      barbeiro: { tenantId },
+      servico: { tenantId },
+    },
+  });
+  if (!vinculo) return;
+
+  await prisma.servicoBarbeiro.update({
+    where: { id: vinculo.id },
+    data: { comissao },
+  });
 
   revalidatePath(`/barbearia/${slug}/barbeiros`);
 }

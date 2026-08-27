@@ -12,7 +12,7 @@ const brandingSchema = z.object({
   corPrimaria: z
     .string()
     .regex(/^#[0-9a-fA-F]{6}$/, "Use um código hexadecimal válido (ex: #171717)"),
-  logoUrl: z.string().url("URL inválida").optional().or(z.literal("")),
+  logoUrl: z.string().optional(), // pode ser URL http(s) ou data URL (upload base64)
 });
 
 export async function atualizarBranding(
@@ -21,9 +21,14 @@ export async function atualizarBranding(
   _estado: EstadoForm,
   formData: FormData
 ): Promise<EstadoForm> {
+  // Prioriza o upload (base64) sobre a URL de texto, se ambos preenchidos
+  const logoUpload = formData.get("logoUrl") as string | null;
+  const logoTexto = formData.get("logoUrlTexto") as string | null;
+  const logoFinal = logoUpload && logoUpload.trim() !== "" ? logoUpload : logoTexto;
+
   const parsed = brandingSchema.safeParse({
     corPrimaria: formData.get("corPrimaria"),
-    logoUrl: formData.get("logoUrl") || undefined,
+    logoUrl: logoFinal || undefined,
   });
   if (!parsed.success) {
     return { erro: parsed.error.issues[0]?.message ?? "Dados inválidos" };

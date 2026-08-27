@@ -2,17 +2,24 @@
 
 import { useActionState } from "react";
 import type { EstadoForm } from "./actions";
+import { UploadImagem } from "@/components/upload-imagem";
+
+type CategoriaOpcao = { id: string; nome: string };
 
 export function NovoProdutoForm({
   criarProdutoAction,
+  categorias,
 }: {
   criarProdutoAction: (estado: EstadoForm, formData: FormData) => Promise<EstadoForm>;
+  categorias: CategoriaOpcao[];
 }) {
   const [estado, formAction, pendente] = useActionState(criarProdutoAction, undefined);
 
   return (
     <form action={formAction} className="bg-white rounded-lg border p-4 space-y-3">
       <h2 className="font-medium">Novo produto</h2>
+
+      <UploadImagem name="fotoUrl" label="Foto do produto" />
 
       <div>
         <label className="block text-xs text-neutral-500 mb-1" htmlFor="nome">
@@ -29,16 +36,22 @@ export function NovoProdutoForm({
 
       <div className="grid grid-cols-2 gap-3">
         <div>
-          <label className="block text-xs text-neutral-500 mb-1" htmlFor="categoria">
+          <label className="block text-xs text-neutral-500 mb-1" htmlFor="categoriaId">
             Categoria *
           </label>
-          <input
-            id="categoria"
-            name="categoria"
+          <select
+            id="categoriaId"
+            name="categoriaId"
             required
             className="w-full rounded-md border px-3 py-2 text-sm"
-            placeholder="Pomadas"
-          />
+          >
+            <option value="">Selecione...</option>
+            {categorias.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.nome}
+              </option>
+            ))}
+          </select>
         </div>
         <div>
           <label className="block text-xs text-neutral-500 mb-1" htmlFor="sku">

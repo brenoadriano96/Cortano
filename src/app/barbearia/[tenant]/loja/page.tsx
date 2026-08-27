@@ -1,8 +1,9 @@
 import { prisma } from "@/lib/prisma";
 import { getTenantBySlug } from "@/lib/tenant";
 import { exigirAcessoGestao } from "@/lib/acesso-pagina";
-import { criarProduto, atualizarEstoque, inativarProduto } from "./actions";
+import { criarProduto, atualizarEstoque, inativarProduto, criarCategoriaProduto } from "./actions";
 import { NovoProdutoForm } from "./novo-produto-form";
+import { NovaCategoriaForm } from "./nova-categoria-form";
 import { EditorEstoque } from "./editor-estoque";
 
 export default async function LojaPage({
@@ -14,14 +15,21 @@ export default async function LojaPage({
   await exigirAcessoGestao(slug);
   const tenant = await getTenantBySlug(slug);
 
-  const produtos = await prisma.produto.findMany({
-    where: { tenantId: tenant.id, ativo: true },
-    orderBy: { createdAt: "desc" },
-  });
+  const [produtos, categorias] = await Promise.all([
+    prisma.produto.findMany({
+      where: { tenantId: tenant.id, ativo: true },
+      orderBy: { createdAt: "desc" },
+    }),
+    prisma.categoriaProduto.findMany({
+      where: { tenantId: tenant.id, ativo: true },
+      orderBy: { nome: "asc" },
+    }),
+  ]);
 
   const criarProdutoComTenant = criarProduto.bind(null, tenant.id, slug);
   const atualizarEstoqueComTenant = atualizarEstoque.bind(null, tenant.id, slug);
   const inativarProdutoComTenant = inativarProduto.bind(null, tenant.id, slug);
+  const criarCategoriaComTenant = criarCategoriaProduto.bind(null, tenant.id, slug);
 
   return (
     <div>
@@ -46,8 +54,22 @@ export default async function LojaPage({
               {produtos.map((p) => (
                 <tr key={p.id} className="border-b last:border-0">
                   <td className="p-3">
-                    <p className="font-medium">{p.nome}</p>
-                    <p className="text-xs text-neutral-400">{p.sku}</p>
+                    <div className="flex items-center gap-2">
+                      {p.fotoUrl ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src={p.fotoUrl}
+                          alt=""
+                          className="h-8 w-8 rounded object-cover border"
+                        />
+                      ) : (
+                        <div className="h-8 w-8 rounded border bg-neutral-50" />
+                      )}
+                      <div>
+                        <p className="font-medium">{p.nome}</p>
+                        <p className="text-xs text-neutral-400">{p.sku}</p>
+                      </div>
+                    </div>
                   </td>
                   <td className="p-3 text-neutral-600">{p.categoria}</td>
                   <td className="p-3 text-neutral-600">
@@ -90,8 +112,9 @@ export default async function LojaPage({
           </table>
         </div>
 
-        <div>
-          <NovoProdutoForm criarProdutoAction={criarProdutoComTenant} />
+        <div className="space-y-4">
+          <NovoProdutoForm criarProdutoAction={criarProdutoComTenant} categorias={categorias} />
+          <NovaCategoriaForm criarCategoriaAction={criarCategoriaComTenant} />
         </div>
       </div>
     </div>
