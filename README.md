@@ -294,14 +294,44 @@ implementado, foram identificados e corrigidos os seguintes gaps de
   na Agenda do negócio quanto no autoagendamento do cliente. Bloqueios são
   geridos na própria tela de Agenda, restrito a quem tem acesso de gestão
 
-**Gaps identificados mas ainda pendentes** (Prioridade Média/Baixa,
-registrados para próxima rodada): perfil detalhado do cliente com
-histórico completo, reagendamento (só existe cancelar), agenda semanal,
-página "Pagamentos" separada no Client, upload real de imagem, comissão
-por serviço editável, categorias de produto normalizadas, métricas de
-churn/novos clientes no Admin. Cobrança automática da barbearia
-(Barbearia → Cortano) foi decidida como **fora de escopo por ora** — sem
-cobrança recorrente real pelo site nesta fase.
+**Prioridade Média (concluída):**
+- **Perfil detalhado do cliente** —
+  `/barbearia/[slug]/clientes/[id]`: histórico completo de agendamentos,
+  compras na loja, avaliações dadas, total gasto (Barbeiro só vê o que é
+  relevante aos próprios atendimentos, seção 4.4)
+- **Reagendamento** — tanto no Business (Agenda) quanto no Client (Meus
+  agendamentos), mantendo cliente/barbeiro/serviços e revalidando
+  disponibilidade (`validarDisponibilidade` ganhou parâmetro para ignorar
+  o próprio agendamento na checagem de conflito)
+- **Agenda semanal** — alternância Dia/Semana na tela de Agenda; visão
+  semanal mostra uma grade barbeiro × dia com contagem de atendimentos,
+  clicável para abrir o dia específico
+- **Página "Pagamentos" separada no Client** —
+  `/barbearia/[slug]/cliente/pagamentos`, reunindo cobranças da assinatura
+  e compras na loja; "Meu Plano" ficou focado só nas informações do plano
+
+**Prioridade Baixa (concluída):**
+- **Upload de imagem** — `src/components/upload-imagem.tsx` (reutilizável),
+  usado em Produto, Serviço, Barbeiro e Logo da barbearia. Converte a
+  imagem para base64 no navegador (limite 2MB) — funcional para o MVP sem
+  depender de um provedor de storage externo (S3/Cloudinary) ainda não
+  configurado; migrar para um bucket de objetos é o próximo passo natural
+  quando o volume de fotos crescer
+- **Comissão por serviço editável** — cada barbeiro mostra, na própria
+  tela de Equipe, um editor inline de comissão por serviço que já realiza
+  (sobrescreve a comissão padrão — seção 15)
+- **Categorias de produto normalizadas** — novo model `CategoriaProduto`
+  (seção 19: "product_categories"), com criação pela própria tela da Loja;
+  produtos existentes continuam funcionando (campo `categoria` de texto
+  mantido por compatibilidade)
+- **Métricas de churn e novos clientes no Admin** — cards de "Novas
+  barbearias (mês)" e "Churn (mês)" na Visão Geral (aproximação: baseada
+  em `updatedAt` das barbearias canceladas, já que não há uma tabela de
+  histórico de status dedicada ainda)
+
+Cobrança automática da barbearia (Barbearia → Cortano) foi decidida como
+**fora de escopo por ora** — sem cobrança recorrente real pelo site nesta
+fase.
 
 ## Decisões importantes em aberto
 
