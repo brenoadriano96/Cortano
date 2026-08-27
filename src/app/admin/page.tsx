@@ -6,6 +6,11 @@ function daquiA7Dias() {
   return d;
 }
 
+function inicioDoMes() {
+  const d = new Date();
+  return new Date(d.getFullYear(), d.getMonth(), 1);
+}
+
 export default async function AdminHomePage() {
   const [
     total,
@@ -16,6 +21,8 @@ export default async function AdminHomePage() {
     assinaturasAtivas,
     trialsExpirandoLogo,
     prospectosAbertos,
+    novasBarbeariasMes,
+    canceladasMes,
   ] = await Promise.all([
     prisma.tenant.count(),
     prisma.tenant.count({ where: { status: "ACTIVE" } }),
@@ -29,9 +36,17 @@ export default async function AdminHomePage() {
     prisma.prospectoBarbearia.count({
       where: { status: { notIn: ["GANHO", "PERDIDO"] } },
     }),
+    prisma.tenant.count({ where: { createdAt: { gte: inicioDoMes() } } }),
+    // Aproximação: barbearias canceladas cujo último status foi atualizado
+    // neste mês (não temos um histórico de status dedicado, usamos updatedAt)
+    prisma.tenant.count({
+      where: { status: "CANCELLED", updatedAt: { gte: inicioDoMes() } },
+    }),
   ]);
 
   const mrr = assinaturasAtivas.reduce((acc, a) => acc + Number(a.valor), 0);
+  const baseChurn = ativas + canceladasMes;
+  const churnRate = baseChurn > 0 ? (canceladasMes / baseChurn) * 100 : 0;
 
   const cards = [
     { label: "Total de barbearias", valor: total },
@@ -40,6 +55,12 @@ export default async function AdminHomePage() {
     { label: "Suspensas", valor: suspensas },
     { label: "Canceladas", valor: canceladas },
     { label: "MRR", valor: `R$ ${mrr.toFixed(2)}`, destaque: true },
+    { label: "Novas barbearias (mês)", valor: novasBarbeariasMes },
+    {
+      label: "Churn (mês)",
+      valor: `${churnRate.toFixed(1)}%`,
+      alerta: churnRate > 5,
+    },
     { label: "Trials vencendo em 7 dias", valor: trialsExpirandoLogo, alerta: trialsExpirandoLogo > 0 },
     { label: "Prospectos em aberto", valor: prospectosAbertos },
   ];
