@@ -1,4 +1,6 @@
 import { prisma } from "@/lib/prisma";
+import { editarAssinaturaSaas } from "./actions";
+import { EditarAssinaturaForm } from "./editar-assinatura-form";
 
 const STATUS_LABEL: Record<string, string> = {
   TRIAL: "Trial",
@@ -36,6 +38,7 @@ export default async function AdminAssinaturasSaasPage() {
               <th className="p-3 font-medium">Valor</th>
               <th className="p-3 font-medium">Status</th>
               <th className="p-3 font-medium">Próxima cobrança</th>
+              <th className="p-3 font-medium"></th>
             </tr>
           </thead>
           <tbody>
@@ -48,11 +51,17 @@ export default async function AdminAssinaturasSaasPage() {
                 <td className="p-3 text-neutral-600">
                   {a.proximaCobranca?.toLocaleDateString("pt-BR") ?? "—"}
                 </td>
+                <td className="p-3 text-right">
+                  <EditarAssinaturaForm
+                    assinatura={a}
+                    editarAssinaturaAction={editarAssinaturaSaas.bind(null, a.id)}
+                  />
+                </td>
               </tr>
             ))}
             {assinaturas.length === 0 && (
               <tr>
-                <td colSpan={5} className="p-6 text-center text-neutral-400">
+                <td colSpan={6} className="p-6 text-center text-neutral-400">
                   Nenhuma assinatura ainda.
                 </td>
               </tr>

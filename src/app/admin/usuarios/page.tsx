@@ -1,8 +1,9 @@
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/auth";
-import { criarUsuarioAdmin, desativarUsuarioAdmin } from "./actions";
+import { criarUsuarioAdmin, desativarUsuarioAdmin, editarNomeUsuarioAdmin } from "./actions";
 import { NovoAdminForm } from "./novo-admin-form";
 import { BotaoDesativarAdmin } from "./botao-desativar";
+import { EditarNomeAdminForm } from "./editar-nome-admin-form";
 
 export default async function AdminUsuariosPage() {
   const session = await auth();
@@ -40,12 +41,19 @@ export default async function AdminUsuariosPage() {
                   </td>
                   <td className="p-3 text-neutral-600">{a.email}</td>
                   <td className="p-3 text-right">
-                    {a.id !== session?.user.id && (
-                      <BotaoDesativarAdmin
+                    <div className="flex items-center justify-end gap-3">
+                      <EditarNomeAdminForm
                         usuarioId={a.id}
-                        desativarAction={desativarUsuarioAdmin}
+                        nomeAtual={a.nome}
+                        editarNomeAction={editarNomeUsuarioAdmin.bind(null, a.id)}
                       />
-                    )}
+                      {a.id !== session?.user.id && (
+                        <BotaoDesativarAdmin
+                          usuarioId={a.id}
+                          desativarAction={desativarUsuarioAdmin}
+                        />
+                      )}
+                    </div>
                   </td>
                 </tr>
               ))}

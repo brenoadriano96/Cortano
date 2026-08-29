@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
-import { criarPlano, inativarPlano } from "./actions";
+import { criarPlano, inativarPlano, editarPlano } from "./actions";
 import { NovoPlanoForm } from "./novo-plano-form";
+import { EditarPlanoForm } from "./editar-plano-form";
 
 export default async function AdminPlanosPage() {
   const planos = await prisma.planoSaas.findMany({
@@ -37,19 +38,25 @@ export default async function AdminPlanosPage() {
                 <p>Clientes: {p.maxClientes ?? "ilimitado"}</p>
                 <p>Produtos: {p.maxProdutos ?? "ilimitado"}</p>
               </div>
-              {p._count.tenants === 0 && (
-                <form
-                  action={async () => {
-                    "use server";
-                    await inativarPlano(p.id);
-                  }}
-                  className="mt-3"
-                >
-                  <button type="submit" className="text-xs text-red-500 hover:underline">
-                    Remover plano
-                  </button>
-                </form>
-              )}
+              <div className="mt-3 flex items-center gap-3">
+                <EditarPlanoForm
+                  plano={p}
+                  qtdBarbeariasUsando={p._count.tenants}
+                  editarPlanoAction={editarPlano.bind(null, p.id)}
+                />
+                {p._count.tenants === 0 && (
+                  <form
+                    action={async () => {
+                      "use server";
+                      await inativarPlano(p.id);
+                    }}
+                  >
+                    <button type="submit" className="text-xs text-red-500 hover:underline">
+                      Remover plano
+                    </button>
+                  </form>
+                )}
+              </div>
             </div>
           ))}
           {planos.length === 0 && (

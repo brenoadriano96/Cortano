@@ -154,3 +154,64 @@ export async function alterarPlanoBarbearia(tenantId: string, novoPlanoId: strin
 
   revalidatePath("/admin/barbearias");
 }
+
+const editarBarbeariaSchema = z.object({
+  nome: z.string().min(2, "Nome muito curto"),
+  razaoSocial: z.string().optional(),
+  cnpj: z.string().optional(),
+  telefone: z.string().optional(),
+  email: z.string().email("E-mail inválido").optional().or(z.literal("")),
+  endereco: z.string().optional(),
+  responsavelNome: z.string().optional(),
+});
+
+/**
+ * Edita os dados cadastrais da barbearia (seção 7: nome, razão social,
+ * CNPJ, telefone, e-mail, endereço, responsável). O `slug` nunca é editável
+ * aqui — mudar o slug quebraria todas as URLs já em uso pela barbearia.
+ */
+export async function editarBarbearia(
+  tenantId: string,
+  _estado: EstadoForm,
+  formData: FormData
+): Promise<EstadoForm> {
+  const usuario = await exigirSuperAdmin();
+
+  const parsed = editarBarbeariaSchema.safeParse({
+    nome: formData.get("nome"),
+    razaoSocial: formData.get("razaoSocial") || undefined,
+    cnpj: formData.get("cnpj") || undefined,
+    telefone: formData.get("telefone") || undefined,
+    email: formData.get("email") || undefined,
+    endereco: formData.get("endereco") || undefined,
+    responsavelNome: formData.get("responsavelNome") || undefined,
+  });
+  if (!parsed.success) {
+    return { erro: parsed.error.issues[0]?.message ?? "Dados inválidos" };
+  }
+
+  await prisma.tenant.update({
+    where: { id: tenantId },
+    data: {
+      nome: parsed.data.nome,
+      razaoSocial: parsed.data.razaoSocial,
+      cnpj: parsed.data.cnpj,
+      telefone: parsed.data.telefone,
+      email: parsed.data.email || undefined,
+      endereco: parsed.data.endereco,
+      responsavelNome: parsed.data.responsavelNome,
+    },
+  });
+
+  await registrarAuditoria({
+    actorId: usuario.id,
+    tenantId,
+    action: "tenant.editar_dados",
+    entityType: "Tenant",
+    entityId: tenantId,
+    metadata: { nome: parsed.data.nome },
+  });
+
+  revalidatePath("/admin/barbearias");
+  return undefined;
+}

@@ -1,8 +1,9 @@
 import { prisma } from "@/lib/prisma";
-import { criarBarbearia, alterarStatusBarbearia, alterarPlanoBarbearia } from "./actions";
+import { criarBarbearia, alterarStatusBarbearia, alterarPlanoBarbearia, editarBarbearia } from "./actions";
 import { NovaBarbeariaForm } from "./nova-barbearia-form";
 import { AcoesStatusBarbearia } from "./acoes-status";
 import { SeletorPlano } from "./seletor-plano";
+import { EditarBarbeariaForm } from "./editar-barbearia-form";
 
 const STATUS_LABEL: Record<string, string> = {
   TRIAL: "Trial",
@@ -70,11 +71,17 @@ export default async function AdminBarbeariasPage() {
                     </span>
                   </td>
                   <td className="p-3">
-                    <AcoesStatusBarbearia
-                      tenantId={t.id}
-                      status={t.status}
-                      alterarStatusAction={alterarStatusBarbearia}
-                    />
+                    <div className="flex items-center gap-3">
+                      <EditarBarbeariaForm
+                        barbearia={t}
+                        editarBarbeariaAction={editarBarbearia.bind(null, t.id)}
+                      />
+                      <AcoesStatusBarbearia
+                        tenantId={t.id}
+                        status={t.status}
+                        alterarStatusAction={alterarStatusBarbearia}
+                      />
+                    </div>
                   </td>
                 </tr>
               ))}

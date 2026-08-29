@@ -93,3 +93,37 @@ export async function desativarUsuarioAdmin(usuarioAlvoId: string) {
 
   revalidatePath("/admin/usuarios");
 }
+
+/**
+ * Só o nome é editável aqui — trocar o e-mail de login merece um fluxo
+ * próprio de confirmação (fora de escopo agora, decisão registrada desde
+ * a Fase 2 de edição de barbeiros).
+ */
+export async function editarNomeUsuarioAdmin(
+  usuarioAlvoId: string,
+  _estado: EstadoForm,
+  formData: FormData
+): Promise<EstadoForm> {
+  const usuario = await exigirSuperAdmin();
+
+  const nome = (formData.get("nome") as string)?.trim();
+  if (!nome || nome.length < 2) {
+    return { erro: "Nome muito curto." };
+  }
+
+  await prisma.usuario.update({
+    where: { id: usuarioAlvoId },
+    data: { nome },
+  });
+
+  await registrarAuditoria({
+    actorId: usuario.id,
+    action: "usuario_admin.editar_nome",
+    entityType: "Usuario",
+    entityId: usuarioAlvoId,
+    metadata: { nome },
+  });
+
+  revalidatePath("/admin/usuarios");
+  return undefined;
+}
