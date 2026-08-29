@@ -265,6 +265,88 @@ integração atual serve como base funcional completa (checkout + webhook);
 trocar de gateway no futuro significa reescrever `src/lib/stripe.ts` e as
 duas rotas de API, mantendo o mesmo modelo de dados.
 
+## Melhorias solicitadas pelo usuário (pós-lançamento)
+
+**Fase 1 — Correções críticas:**
+- `financeiro/page.tsx` e `assinaturas/page.tsx` criados (antes davam 404 —
+  as pastas existiam no menu mas nunca ganharam página)
+- Dashboard: Faturamento e Assinaturas ativas agora só aparecem para quem
+  tem acesso de gestão (`temAcessoGestao`) — corrige o Atendente (e o
+  Barbeiro, temporariamente, até a reconstrução completa do dashboard dele)
+  vendo dados financeiros que não deveriam
+
+**Fase 2 — Edição completa (CRUD):**
+- Clientes, Serviços, Produtos e Barbeiros agora têm um botão "Editar" que
+  abre um modal (client component com `useActionState` + `useEffect` para
+  fechar automaticamente após salvar com sucesso) — antes só existia
+  criar/remover, sem editar
+- `src/lib/comissoes.ts` (novo) — helper central de cálculo de comissão por
+  atendimento (usa a comissão específica do serviço quando cadastrada,
+  senão a comissão padrão do barbeiro), reaproveitado em Financeiro e
+  preparado para Relatórios (Fase 4) e Dashboard do Barbeiro (Fase 5)
+
+**Atenção técnica registrada:** ao integrar edição dentro de linhas de
+tabela que já tinham um formulário de "Remover", cuidado para não aninhar
+`<form>` dentro de `<form>` (HTML inválido, e o botão "Editar" herdaria
+`type="submit"` do form pai, dispararia a remoção por engano). Corrigido
+com `type="button"` explícito nos toggles dos modais e reestruturação para
+formulários irmãos, nunca aninhados.
+
+**Fase 3 — Gestão de perfis da equipe:**
+- Nova seção "Perfis da equipe" em Configurações, visível só para
+  Proprietário/Super Admin — cria Gerente/Atendente (Barbeiro continua
+  cadastrado em Equipe, já que carrega dados extras como comissão),
+  edita permissões granulares do Gerente (`Usuario.permissoes`, campo que
+  já existia no schema mas nunca tinha interface), desativa perfil
+- Ação de gerenciar perfis restrita ao Proprietário — mesmo um Gerente com
+  acesso de gestão geral não pode criar outros perfis nem se auto-promover
+  (`exigirProprietario`, separado de `exigirAcessoGestao`)
+
+**Fase 4 — Relatórios: comissão + filtro de mês:**
+- Nova coluna "A pagar (comissão)" ao lado de Ticket Médio, usando o mesmo
+  `calcularComissoesPorBarbeiro` já criado na Fase 1
+- Filtro de mês (`<input type="month">`) substitui o "mês atual" fixo —
+  navega via query string (`?mes=AAAA-MM`), permitindo consultar qualquer
+  mês retroativo
+
+**Fase 5 — Dashboard dedicado do Barbeiro:**
+- `dashboard/barbeiro-dashboard.tsx` (novo) — substitui completamente o
+  dashboard genérico quando o papel é BARBEIRO: mostra "você tem a
+  receber" (comissão do mês, usando `calcularComissoesPorBarbeiro` filtrado
+  pelo próprio barbeiro) em vez de faturamento bruto do negócio, e já traz
+  a agenda do dia e um resumo compacto da semana na própria tela inicial —
+  sem precisar clicar em "Agenda" primeiro
+
+**Fase 6 — Cliente: upgrade/downgrade + pedidos no dashboard:**
+- **Meu Plano** — lista os outros planos disponíveis com botão "Trocar
+  para este plano". Troca imediata, sem cobrança proporcional pelo tempo
+  restante (decisão do produto). **Limitação registrada:** se a assinatura
+  já tiver uma cobrança ativa via Stripe, o valor cobrado *no Stripe* não
+  muda automaticamente — isso exigiria integrar a API de atualização de
+  assinatura do Stripe, fica como próximo passo se a cobrança automática
+  for retomada no futuro
+- **Dashboard do Cliente** — novo card "Meus pedidos" mostrando os 3
+  últimos pedidos da loja com status, direto na tela inicial
+
+**Fase 7 — Cortano Admin: edição de registros já cadastrados:**
+- **Barbearias** — edita nome, razão social, CNPJ, telefone, e-mail,
+  endereço, responsável. O `slug` nunca é editável (mudar quebraria as
+  URLs já em uso pela barbearia)
+- **Planos SaaS** — edita preço e limites; mostra quantas barbearias usam
+  o plano antes de salvar (mudar limites de um plano ativo afeta todas
+  imediatamente)
+- **Usuários administrativos** — edita só o nome; e-mail de login
+  permanece não-editável por aqui (mesma decisão já tomada para barbeiros
+  na Fase 2 — trocar e-mail merece fluxo próprio de confirmação)
+- **Assinaturas SaaS** — edição manual de status/valor/próxima cobrança
+  (`admin/assinaturas-saas/actions.ts`, novo arquivo — a página existia
+  mas nunca teve actions), útil para ajustes de suporte já que não há
+  cobrança automática real implementada. Editar aqui também sincroniza o
+  status do `Tenant` correspondente
+
+Todas as 4 edições são restritas a Super Admin e geram log de auditoria
+(seção 21 — alteração de dados administrativos/financeiros é ação crítica).
+
 ## Auditoria de gaps e correções (pós-revisão completa)
 
 Após revisão do documento de arquitetura original contra o que estava
