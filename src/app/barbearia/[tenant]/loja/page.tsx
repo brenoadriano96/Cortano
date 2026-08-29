@@ -1,10 +1,11 @@
 import { prisma } from "@/lib/prisma";
 import { getTenantBySlug } from "@/lib/tenant";
 import { exigirAcessoGestao } from "@/lib/acesso-pagina";
-import { criarProduto, atualizarEstoque, inativarProduto, criarCategoriaProduto } from "./actions";
+import { criarProduto, atualizarEstoque, inativarProduto, criarCategoriaProduto, atualizarProduto } from "./actions";
 import { NovoProdutoForm } from "./novo-produto-form";
 import { NovaCategoriaForm } from "./nova-categoria-form";
 import { EditorEstoque } from "./editor-estoque";
+import { EditarProdutoForm } from "./editar-produto-form";
 
 export default async function LojaPage({
   params,
@@ -88,16 +89,23 @@ export default async function LojaPage({
                     </div>
                   </td>
                   <td className="p-3 text-right">
-                    <form
-                      action={async () => {
-                        "use server";
-                        await inativarProdutoComTenant(p.id);
-                      }}
-                    >
-                      <button type="submit" className="text-xs text-red-500 hover:underline">
-                        Remover
-                      </button>
-                    </form>
+                    <div className="flex items-center justify-end gap-3">
+                      <EditarProdutoForm
+                        produto={p}
+                        categorias={categorias}
+                        atualizarProdutoAction={atualizarProduto.bind(null, tenant.id, slug, p.id)}
+                      />
+                      <form
+                        action={async () => {
+                          "use server";
+                          await inativarProdutoComTenant(p.id);
+                        }}
+                      >
+                        <button type="submit" className="text-xs text-red-500 hover:underline">
+                          Remover
+                        </button>
+                      </form>
+                    </div>
                   </td>
                 </tr>
               ))}

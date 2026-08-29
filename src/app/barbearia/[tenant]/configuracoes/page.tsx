@@ -1,10 +1,24 @@
 import { prisma } from "@/lib/prisma";
 import { getTenantBySlug } from "@/lib/tenant";
 import { exigirAcessoGestao } from "@/lib/acesso-pagina";
+import { auth } from "@/auth";
 import { criarCupom, inativarCupom, converterIndicacao, atualizarBranding } from "./actions";
+import {
+  criarPerfilEquipe,
+  atualizarPermissoesGerente,
+  desativarPerfilEquipe,
+} from "./perfis-actions";
 import { NovoCupomForm } from "./novo-cupom-form";
 import { BotaoConverterIndicacao } from "./botao-converter-indicacao";
 import { BrandingForm } from "./branding-form";
+import { NovoPerfilForm } from "./novo-perfil-form";
+import { PermissoesGerenteForm } from "./permissoes-gerente-form";
+
+const PAPEL_LABEL: Record<string, string> = {
+  PROPRIETARIO: "Proprietário",
+  GERENTE: "Gerente",
+  ATENDENTE: "Atendente",
+};
 
 export default async function ConfiguracoesPage({
   params,
@@ -14,8 +28,11 @@ export default async function ConfiguracoesPage({
   const { tenant: slug } = await params;
   await exigirAcessoGestao(slug);
   const tenant = await getTenantBySlug(slug);
+  const session = await auth();
+  const ehProprietario =
+    session?.user.papel === "PROPRIETARIO" || session?.user.papel === "SUPER_ADMIN";
 
-  const [cupons, indicacoes] = await Promise.all([
+  const [cupons, indicacoes, perfisEquipe] = await Promise.all([
     prisma.cupom.findMany({
       where: { tenantId: tenant.id, ativo: true },
       orderBy: { createdAt: "desc" },
@@ -25,12 +42,22 @@ export default async function ConfiguracoesPage({
       include: { clienteIndicador: true },
       orderBy: { createdAt: "desc" },
     }),
+    prisma.usuario.findMany({
+      where: {
+        tenantId: tenant.id,
+        ativo: true,
+        papel: { in: ["PROPRIETARIO", "GERENTE", "ATENDENTE"] },
+      },
+      orderBy: { createdAt: "asc" },
+    }),
   ]);
 
   const criarCupomComTenant = criarCupom.bind(null, tenant.id, slug);
   const inativarCupomComTenant = inativarCupom.bind(null, tenant.id, slug);
   const converterIndicacaoComTenant = converterIndicacao.bind(null, tenant.id, slug);
   const atualizarBrandingComTenant = atualizarBranding.bind(null, tenant.id, slug);
+  const criarPerfilComTenant = criarPerfilEquipe.bind(null, tenant.id, slug);
+  const desativarPerfilComTenant = desativarPerfilEquipe.bind(null, tenant.id, slug);
 
   return (
     <div className="space-y-8">
@@ -38,6 +65,75 @@ export default async function ConfiguracoesPage({
         <h1 className="text-2xl font-semibold mb-1">Configurações</h1>
         <p className="text-neutral-500">{tenant.nome}</p>
       </div>
+
+      {ehProprietario && (
+        <div>
+          <h2 className="font-medium mb-3">Perfis da equipe</h2>
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div className="lg:col-span-2 bg-white rounded-lg border">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b text-left text-neutral-500">
+                    <th className="p-3 font-medium">Nome</th>
+                    <th className="p-3 font-medium">Função</th>
+                    <th className="p-3 font-medium"></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {perfisEquipe.map((p) => (
+                    <tr key={p.id} className="border-b last:border-0">
+                      <td className="p-3">
+                        <p className="font-medium">
+                          {p.nome}
+                          {p.id === session?.user.id && (
+                            <span className="text-xs text-neutral-400 ml-2">(você)</span>
+                          )}
+                        </p>
+                        <p className="text-xs text-neutral-400">{p.email}</p>
+                      </td>
+                      <td className="p-3 text-neutral-600">{PAPEL_LABEL[p.papel]}</td>
+                      <td className="p-3 text-right">
+                        {p.papel !== "PROPRIETARIO" && (
+                          <div className="flex items-center justify-end gap-3">
+                            {p.papel === "GERENTE" && (
+                              <PermissoesGerenteForm
+                                permissoesAtuais={p.permissoes as Record<string, boolean> | null}
+                                atualizarPermissoesAction={atualizarPermissoesGerente.bind(
+                                  null,
+                                  tenant.id,
+                                  slug,
+                                  p.id
+                                )}
+                              />
+                            )}
+                            <form
+                              action={async () => {
+                                "use server";
+                                await desativarPerfilComTenant(p.id);
+                              }}
+                            >
+                              <button
+                                type="submit"
+                                className="text-xs text-red-500 hover:underline"
+                              >
+                                Remover
+                              </button>
+                            </form>
+                          </div>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <div className="bg-white rounded-lg border p-4">
+              <h3 className="font-medium text-sm mb-3">Novo perfil</h3>
+              <NovoPerfilForm criarPerfilAction={criarPerfilComTenant} />
+            </div>
+          </div>
+        </div>
+      )}
 
       <div>
         <h2 className="font-medium mb-3">Personalização (white-label)</h2>

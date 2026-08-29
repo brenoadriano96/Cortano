@@ -53,3 +53,36 @@ export async function inativarServico(tenantId: string, slug: string, servicoId:
   });
   revalidatePath(`/barbearia/${slug}/servicos`);
 }
+
+export async function atualizarServico(
+  tenantId: string,
+  slug: string,
+  servicoId: string,
+  _estado: EstadoForm,
+  formData: FormData
+): Promise<EstadoForm> {
+  const parsed = servicoSchema.safeParse({
+    nome: formData.get("nome"),
+    preco: formData.get("preco"),
+    duracaoMin: formData.get("duracaoMin"),
+    descricao: formData.get("descricao") || undefined,
+    fotoUrl: formData.get("fotoUrl") || undefined,
+  });
+  if (!parsed.success) {
+    return { erro: parsed.error.issues[0]?.message ?? "Dados inválidos" };
+  }
+
+  await prisma.servico.updateMany({
+    where: { id: servicoId, tenantId },
+    data: {
+      nome: parsed.data.nome,
+      preco: parsed.data.preco,
+      duracaoMin: parsed.data.duracaoMin,
+      descricao: parsed.data.descricao,
+      fotoUrl: parsed.data.fotoUrl || undefined,
+    },
+  });
+
+  revalidatePath(`/barbearia/${slug}/servicos`);
+  return undefined;
+}

@@ -136,3 +136,55 @@ export async function inativarProduto(tenantId: string, slug: string, produtoId:
   });
   revalidatePath(`/barbearia/${slug}/loja`);
 }
+
+const editarProdutoSchema = z.object({
+  nome: z.string().min(2, "Nome muito curto"),
+  categoriaId: z.string().min(1, "Selecione uma categoria"),
+  preco: z.coerce.number().positive("Preço deve ser maior que zero"),
+  descricao: z.string().optional(),
+  fotoUrl: z.string().optional(),
+});
+
+export async function atualizarProduto(
+  tenantId: string,
+  slug: string,
+  produtoId: string,
+  _estado: EstadoForm,
+  formData: FormData
+): Promise<EstadoForm> {
+  const parsed = editarProdutoSchema.safeParse({
+    nome: formData.get("nome"),
+    categoriaId: formData.get("categoriaId"),
+    preco: formData.get("preco"),
+    descricao: formData.get("descricao") || undefined,
+    fotoUrl: formData.get("fotoUrl") || undefined,
+  });
+  if (!parsed.success) {
+    return { erro: parsed.error.issues[0]?.message ?? "Dados inválidos" };
+  }
+
+  const categoria = await prisma.categoriaProduto.findFirst({
+    where: { id: parsed.data.categoriaId, tenantId },
+  });
+  if (!categoria) {
+    return { erro: "Categoria inválida." };
+  }
+
+  // SKU e estoque não são editáveis aqui de propósito: SKU é identificador
+  // fixo do produto, e estoque já tem seu próprio editor dedicado na lista
+  // (evita duas fontes de verdade divergentes editando o mesmo campo).
+  await prisma.produto.updateMany({
+    where: { id: produtoId, tenantId },
+    data: {
+      nome: parsed.data.nome,
+      categoria: categoria.nome,
+      categoriaId: categoria.id,
+      preco: parsed.data.preco,
+      descricao: parsed.data.descricao,
+      fotoUrl: parsed.data.fotoUrl || undefined,
+    },
+  });
+
+  revalidatePath(`/barbearia/${slug}/loja`);
+  return undefined;
+}

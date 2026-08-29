@@ -1,32 +1,51 @@
 import { prisma } from "@/lib/prisma";
 import { getTenantBySlug } from "@/lib/tenant";
 import { exigirAcessoGestao } from "@/lib/acesso-pagina";
+import { calcularComissoesPorBarbeiro } from "@/lib/comissoes";
 
-function inicioDoMes() {
-  const d = new Date();
-  return new Date(d.getFullYear(), d.getMonth(), 1);
+function primeiroDiaDoMes(ano: number, mes: number) {
+  return new Date(ano, mes, 1);
 }
+
+const NOMES_MES = [
+  "Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho",
+  "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro",
+];
 
 export default async function RelatoriosPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ tenant: string }>;
+  searchParams: Promise<{ mes?: string }>;
 }) {
   const { tenant: slug } = await params;
   await exigirAcessoGestao(slug);
   const tenant = await getTenantBySlug(slug);
+  const { mes: mesParam } = await searchParams;
 
-  const [barbeiros, servicos, agendamentosAtendidos] = await Promise.all([
+  // mesParam no formato "AAAA-MM" (input type=month); padrão: mês atual
+  const agora = new Date();
+  const [anoSelecionado, mesSelecionado] = mesParam
+    ? mesParam.split("-").map(Number)
+    : [agora.getFullYear(), agora.getMonth() + 1];
+
+  const inicio = primeiroDiaDoMes(anoSelecionado, mesSelecionado - 1);
+  const fim = primeiroDiaDoMes(anoSelecionado, mesSelecionado);
+  const valorInputMes = `${anoSelecionado}-${String(mesSelecionado).padStart(2, "0")}`;
+
+  const [barbeiros, servicos, agendamentosAtendidos, comissoes] = await Promise.all([
     prisma.barbeiro.findMany({ where: { tenantId: tenant.id, ativo: true } }),
     prisma.servico.findMany({ where: { tenantId: tenant.id, ativo: true } }),
     prisma.agendamento.findMany({
       where: {
         tenantId: tenant.id,
         status: "ATENDIDO",
-        dataHoraInicio: { gte: inicioDoMes() },
+        dataHoraInicio: { gte: inicio, lt: fim },
       },
       include: { servicos: { include: { servico: true } }, avaliacao: true },
     }),
+    calcularComissoesPorBarbeiro(tenant.id, inicio, fim),
   ]);
 
   // Desempenho por barbeiro (seção 7 do documento de arquitetura)
@@ -41,6 +60,7 @@ export default async function RelatoriosPage({
       avaliacoes.length > 0
         ? avaliacoes.reduce((acc, av) => acc + av.notaExperiencia, 0) / avaliacoes.length
         : null;
+    const comissaoAPagar = comissoes.find((c) => c.barbeiroId === b.id)?.comissao ?? 0;
 
     return {
       nome: b.nome,
@@ -48,6 +68,7 @@ export default async function RelatoriosPage({
       faturamento,
       ticketMedio,
       notaMedia,
+      comissaoAPagar,
     };
   });
 
@@ -67,8 +88,26 @@ export default async function RelatoriosPage({
 
   return (
     <div>
-      <h1 className="text-2xl font-semibold mb-1">Relatórios</h1>
-      <p className="text-neutral-500 mb-6">Mês atual</p>
+      <div className="flex items-center justify-between mb-1 flex-wrap gap-3">
+        <h1 className="text-2xl font-semibold">Relatórios</h1>
+        <form method="get" className="flex items-center gap-2">
+          <input
+            type="month"
+            name="mes"
+            defaultValue={valorInputMes}
+            className="rounded-md border px-3 py-1.5 text-sm"
+          />
+          <button
+            type="submit"
+            className="text-sm bg-neutral-900 text-white px-3 py-1.5 rounded-md"
+          >
+            Ver mês
+          </button>
+        </form>
+      </div>
+      <p className="text-neutral-500 mb-6">
+        {NOMES_MES[mesSelecionado - 1]} de {anoSelecionado}
+      </p>
 
       <div className="bg-white rounded-lg border p-4 mb-6">
         <p className="text-sm text-neutral-500">Faturamento total do mês</p>
@@ -87,6 +126,7 @@ export default async function RelatoriosPage({
                 <th className="p-3 font-medium">Atend.</th>
                 <th className="p-3 font-medium">Faturado</th>
                 <th className="p-3 font-medium">Ticket médio</th>
+                <th className="p-3 font-medium">A pagar (comissão)</th>
                 <th className="p-3 font-medium">Avaliação</th>
               </tr>
             </thead>
@@ -97,6 +137,7 @@ export default async function RelatoriosPage({
                   <td className="p-3 text-neutral-600">{b.atendimentos}</td>
                   <td className="p-3 text-neutral-600">R$ {b.faturamento.toFixed(2)}</td>
                   <td className="p-3 text-neutral-600">R$ {b.ticketMedio.toFixed(2)}</td>
+                  <td className="p-3 font-medium">R$ {b.comissaoAPagar.toFixed(2)}</td>
                   <td className="p-3 text-neutral-600">
                     {b.notaMedia !== null ? `${b.notaMedia.toFixed(1)} ★` : "—"}
                   </td>
@@ -104,7 +145,7 @@ export default async function RelatoriosPage({
               ))}
               {desempenhoBarbeiros.length === 0 && (
                 <tr>
-                  <td colSpan={5} className="p-6 text-center text-neutral-400">
+                  <td colSpan={6} className="p-6 text-center text-neutral-400">
                     Sem dados neste período.
                   </td>
                 </tr>

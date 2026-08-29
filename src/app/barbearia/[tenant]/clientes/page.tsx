@@ -2,8 +2,9 @@ import { prisma } from "@/lib/prisma";
 import { getTenantBySlug } from "@/lib/tenant";
 import { auth } from "@/auth";
 import { getBarbeiroVinculado } from "@/lib/acesso-pagina";
-import { criarCliente, inativarCliente } from "./actions";
+import { criarCliente, inativarCliente, atualizarCliente } from "./actions";
 import { NovoClienteForm } from "./novo-cliente-form";
+import { EditarClienteForm } from "./editar-cliente-form";
 
 export default async function ClientesPage({
   params,
@@ -68,19 +69,25 @@ export default async function ClientesPage({
                   <td className="p-3 text-neutral-600">{c.email ?? "—"}</td>
                   {!barbeiroLogado && (
                     <td className="p-3 text-right">
-                      <form
-                        action={async () => {
-                          "use server";
-                          await inativarClienteComTenant(c.id);
-                        }}
-                      >
-                        <button
-                          type="submit"
-                          className="text-xs text-red-500 hover:underline"
+                      <div className="flex items-center justify-end gap-3">
+                        <EditarClienteForm
+                          cliente={c}
+                          atualizarClienteAction={atualizarCliente.bind(null, tenant.id, slug, c.id)}
+                        />
+                        <form
+                          action={async () => {
+                            "use server";
+                            await inativarClienteComTenant(c.id);
+                          }}
                         >
-                          Remover
-                        </button>
-                      </form>
+                          <button
+                            type="submit"
+                            className="text-xs text-red-500 hover:underline"
+                          >
+                            Remover
+                          </button>
+                        </form>
+                      </div>
                     </td>
                   )}
                 </tr>

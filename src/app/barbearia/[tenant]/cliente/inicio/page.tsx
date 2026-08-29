@@ -11,7 +11,7 @@ export default async function ClienteInicioPage({
   const tenant = await getTenantBySlug(slug);
   const cliente = await getClienteAtual(tenant.id);
 
-  const [proximoAgendamento, assinatura] = await Promise.all([
+  const [proximoAgendamento, assinatura, pedidosRecentes] = await Promise.all([
     prisma.agendamento.findFirst({
       where: {
         tenantId: tenant.id,
@@ -25,6 +25,11 @@ export default async function ClienteInicioPage({
     prisma.assinaturaCliente.findFirst({
       where: { tenantId: tenant.id, clienteId: cliente.id, status: "ATIVA" },
       include: { plano: { include: { servicosInclusos: { include: { servico: true } } } } },
+    }),
+    prisma.pedido.findMany({
+      where: { tenantId: tenant.id, clienteId: cliente.id },
+      orderBy: { createdAt: "desc" },
+      take: 3,
     }),
   ]);
 
@@ -60,12 +65,37 @@ export default async function ClienteInicioPage({
       </div>
 
       {assinatura && (
-        <div className="bg-white rounded-lg border p-4">
+        <div className="bg-white rounded-lg border p-4 mb-4">
           <p className="text-sm text-neutral-500 mb-1">Meu plano</p>
           <p className="font-medium">{assinatura.plano.nome}</p>
           <p className="text-sm text-neutral-500">
             {assinatura.plano.servicosInclusos.map((si) => si.servico.nome).join(", ")}
           </p>
+        </div>
+      )}
+
+      {pedidosRecentes.length > 0 && (
+        <div className="bg-white rounded-lg border p-4">
+          <div className="flex items-center justify-between mb-2">
+            <p className="text-sm text-neutral-500">Meus pedidos</p>
+            <a
+              href={`/barbearia/${slug}/cliente/pedidos`}
+              className="text-xs text-neutral-500 hover:underline"
+            >
+              Ver todos →
+            </a>
+          </div>
+          <div className="space-y-2">
+            {pedidosRecentes.map((p) => (
+              <div key={p.id} className="flex items-center justify-between text-sm">
+                <span className="text-neutral-500">
+                  {p.createdAt.toLocaleDateString("pt-BR")}
+                </span>
+                <span className="text-xs text-neutral-400">{p.status}</span>
+                <span className="font-medium">R$ {Number(p.valorTotal).toFixed(2)}</span>
+              </div>
+            ))}
+          </div>
         </div>
       )}
 

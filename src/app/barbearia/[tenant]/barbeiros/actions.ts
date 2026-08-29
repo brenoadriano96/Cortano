@@ -148,3 +148,59 @@ export async function atualizarComissaoServico(
 
   revalidatePath(`/barbearia/${slug}/barbeiros`);
 }
+
+const editarBarbeiroSchema = z.object({
+  nome: z.string().min(2, "Nome muito curto"),
+  comissaoPadrao: z.coerce.number().min(0).max(100).default(0),
+  unidadeId: z.string().optional(),
+  fotoUrl: z.string().optional(),
+});
+
+/**
+ * Edição de dados do barbeiro (nome, foto, unidade, comissão padrão).
+ * E-mail de login não é editável aqui de propósito — trocar e-mail de
+ * autenticação merece um fluxo próprio de confirmação, fora de escopo agora.
+ */
+export async function atualizarBarbeiro(
+  tenantId: string,
+  slug: string,
+  barbeiroId: string,
+  _estado: EstadoForm,
+  formData: FormData
+): Promise<EstadoForm> {
+  const parsed = editarBarbeiroSchema.safeParse({
+    nome: formData.get("nome"),
+    comissaoPadrao: formData.get("comissaoPadrao") || 0,
+    unidadeId: formData.get("unidadeId") || undefined,
+    fotoUrl: formData.get("fotoUrl") || undefined,
+  });
+  if (!parsed.success) {
+    return { erro: parsed.error.issues[0]?.message ?? "Dados inválidos" };
+  }
+
+  const barbeiro = await prisma.barbeiro.findFirst({ where: { id: barbeiroId, tenantId } });
+  if (!barbeiro) {
+    return { erro: "Barbeiro não encontrado." };
+  }
+
+  await prisma.barbeiro.update({
+    where: { id: barbeiroId },
+    data: {
+      nome: parsed.data.nome,
+      comissaoPadrao: parsed.data.comissaoPadrao,
+      unidadeId: parsed.data.unidadeId || null,
+      fotoUrl: parsed.data.fotoUrl || undefined,
+    },
+  });
+
+  // Mantém o nome do Usuario vinculado em sincronia (usado no login/sessão)
+  if (barbeiro.usuarioId) {
+    await prisma.usuario.update({
+      where: { id: barbeiro.usuarioId },
+      data: { nome: parsed.data.nome },
+    });
+  }
+
+  revalidatePath(`/barbearia/${slug}/barbeiros`);
+  return undefined;
+}

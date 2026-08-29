@@ -1,9 +1,10 @@
 import { prisma } from "@/lib/prisma";
 import { getTenantBySlug } from "@/lib/tenant";
 import { exigirAcessoGestao } from "@/lib/acesso-pagina";
-import { criarBarbeiro, inativarBarbeiro, atualizarComissaoServico } from "./actions";
+import { criarBarbeiro, inativarBarbeiro, atualizarComissaoServico, atualizarBarbeiro } from "./actions";
 import { NovoBarbeiroForm } from "./novo-barbeiro-form";
 import { EditorComissao } from "./editor-comissao";
+import { EditarBarbeiroForm } from "./editar-barbeiro-form";
 
 export default async function BarbeirosPage({
   params,
@@ -65,16 +66,23 @@ export default async function BarbeirosPage({
                     </p>
                   </div>
                 </div>
-                <form
-                  action={async () => {
-                    "use server";
-                    await inativarBarbeiroComTenant(b.id);
-                  }}
-                >
-                  <button type="submit" className="text-xs text-red-500 hover:underline">
-                    Remover
-                  </button>
-                </form>
+                <div className="flex items-center gap-3">
+                  <EditarBarbeiroForm
+                    barbeiro={b}
+                    unidadesDisponiveis={unidades}
+                    atualizarBarbeiroAction={atualizarBarbeiro.bind(null, tenant.id, slug, b.id)}
+                  />
+                  <form
+                    action={async () => {
+                      "use server";
+                      await inativarBarbeiroComTenant(b.id);
+                    }}
+                  >
+                    <button type="submit" className="text-xs text-red-500 hover:underline">
+                      Remover
+                    </button>
+                  </form>
+                </div>
               </div>
 
               {b.servicos.length > 0 && (

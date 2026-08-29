@@ -1,5 +1,9 @@
 import { prisma } from "@/lib/prisma";
 import { getTenantBySlug } from "@/lib/tenant";
+import { auth } from "@/auth";
+import { temAcessoGestao } from "@/lib/rbac";
+import { getBarbeiroVinculado } from "@/lib/acesso-pagina";
+import { BarbeiroDashboard } from "./barbeiro-dashboard";
 
 function inicioDoDia(d = new Date()) {
   const x = new Date(d);
@@ -18,49 +22,76 @@ export default async function DashboardPage({
 }) {
   const { tenant: slug } = await params;
   const tenant = await getTenantBySlug(slug);
+  const session = await auth();
 
-  const [
-    agendamentosHoje,
-    faturamentoMes,
-    clientesNovosMes,
-    cancelamentosHoje,
-    assinaturasAtivas,
-  ] = await Promise.all([
-    prisma.agendamento.count({
-      where: { tenantId: tenant.id, dataHoraInicio: { gte: inicioDoDia() } },
-    }),
-    prisma.agendamento.aggregate({
-      where: {
-        tenantId: tenant.id,
-        status: "ATENDIDO",
-        dataHoraInicio: { gte: inicioDoMes() },
-      },
-      _sum: { valorTotal: true },
-    }),
-    prisma.cliente.count({
-      where: { tenantId: tenant.id, createdAt: { gte: inicioDoMes() } },
-    }),
-    prisma.agendamento.count({
-      where: {
-        tenantId: tenant.id,
-        status: "CANCELADO",
-        dataHoraInicio: { gte: inicioDoDia() },
-      },
-    }),
-    prisma.assinaturaCliente.count({
-      where: { tenantId: tenant.id, status: "ATIVA" },
-    }),
-  ]);
+  // Seção 4.4: o Barbeiro tem um dashboard totalmente dedicado — valor a
+  // receber (comissão) em vez de faturamento bruto, e a própria agenda do
+  // dia/semana já na tela inicial.
+  if (session?.user.papel === "BARBEIRO") {
+    const barbeiro = await getBarbeiroVinculado(tenant.id, session.user.id);
+    if (barbeiro) {
+      return (
+        <BarbeiroDashboard
+          tenantId={tenant.id}
+          slug={slug}
+          barbeiroId={barbeiro.id}
+          barbeiroNome={barbeiro.nome}
+        />
+      );
+    }
+  }
+
+  // Seção 4.5: Atendente não deve ver dados financeiros (faturamento,
+  // assinaturas) — só o operacional (agenda, clientes, cancelamentos)
+  const podeVerFinanceiro = session ? temAcessoGestao(session.user.papel) : false;
+
+  const [agendamentosHoje, faturamentoMes, clientesNovosMes, cancelamentosHoje, assinaturasAtivas] =
+    await Promise.all([
+      prisma.agendamento.count({
+        where: { tenantId: tenant.id, dataHoraInicio: { gte: inicioDoDia() } },
+      }),
+      podeVerFinanceiro
+        ? prisma.agendamento.aggregate({
+            where: {
+              tenantId: tenant.id,
+              status: "ATENDIDO",
+              dataHoraInicio: { gte: inicioDoMes() },
+            },
+            _sum: { valorTotal: true },
+          })
+        : Promise.resolve(null),
+      prisma.cliente.count({
+        where: { tenantId: tenant.id, createdAt: { gte: inicioDoMes() } },
+      }),
+      prisma.agendamento.count({
+        where: {
+          tenantId: tenant.id,
+          status: "CANCELADO",
+          dataHoraInicio: { gte: inicioDoDia() },
+        },
+      }),
+      podeVerFinanceiro
+        ? prisma.assinaturaCliente.count({
+            where: { tenantId: tenant.id, status: "ATIVA" },
+          })
+        : Promise.resolve(null),
+    ]);
 
   const cards = [
     { label: "Agendamentos hoje", valor: agendamentosHoje },
-    {
-      label: "Faturamento do mês",
-      valor: `R$ ${(faturamentoMes._sum.valorTotal ?? 0).toString()}`,
-    },
+    ...(podeVerFinanceiro
+      ? [
+          {
+            label: "Faturamento do mês",
+            valor: `R$ ${Number(faturamentoMes?._sum.valorTotal ?? 0).toFixed(2)}`,
+          },
+        ]
+      : []),
     { label: "Clientes novos (mês)", valor: clientesNovosMes },
     { label: "Cancelamentos hoje", valor: cancelamentosHoje },
-    { label: "Assinaturas ativas", valor: assinaturasAtivas },
+    ...(podeVerFinanceiro
+      ? [{ label: "Assinaturas ativas", valor: assinaturasAtivas ?? 0 }]
+      : []),
   ];
 
   return (

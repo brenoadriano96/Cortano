@@ -2,8 +2,9 @@ import { prisma } from "@/lib/prisma";
 import { getTenantBySlug } from "@/lib/tenant";
 import { auth } from "@/auth";
 import { temAcessoGestao } from "@/lib/rbac";
-import { criarServico, inativarServico } from "./actions";
+import { criarServico, inativarServico, atualizarServico } from "./actions";
 import { NovoServicoForm } from "./novo-servico-form";
+import { EditarServicoForm } from "./editar-servico-form";
 
 export default async function ServicosPage({
   params,
@@ -66,16 +67,22 @@ export default async function ServicosPage({
                   <td className="p-3 text-neutral-600">{s.duracaoMin} min</td>
                   {podeGerenciar && (
                     <td className="p-3 text-right">
-                      <form
-                        action={async () => {
-                          "use server";
-                          await inativarServicoComTenant(s.id);
-                        }}
-                      >
-                        <button type="submit" className="text-xs text-red-500 hover:underline">
-                          Remover
-                        </button>
-                      </form>
+                      <div className="flex items-center justify-end gap-3">
+                        <EditarServicoForm
+                          servico={s}
+                          atualizarServicoAction={atualizarServico.bind(null, tenant.id, slug, s.id)}
+                        />
+                        <form
+                          action={async () => {
+                            "use server";
+                            await inativarServicoComTenant(s.id);
+                          }}
+                        >
+                          <button type="submit" className="text-xs text-red-500 hover:underline">
+                            Remover
+                          </button>
+                        </form>
+                      </div>
                     </td>
                   )}
                 </tr>

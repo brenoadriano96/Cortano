@@ -2,6 +2,8 @@ import { prisma } from "@/lib/prisma";
 import { getTenantBySlug } from "@/lib/tenant";
 import { getClienteAtual } from "@/lib/cliente-atual";
 import { BotaoAssinar } from "./botao-assinar";
+import { BotaoTrocarPlano } from "./botao-trocar-plano";
+import { trocarPlanoCliente } from "./actions";
 
 function inicioDoMes() {
   const d = new Date();
@@ -75,6 +77,15 @@ export default async function ClienteMeuPlanoPage({
     })
   );
 
+  const outrosPlanos = await prisma.planoCliente.findMany({
+    where: { tenantId: tenant.id, ativo: true },
+  });
+
+  const trocarPlanoComContexto = async (planoId: string) => {
+    "use server";
+    return trocarPlanoCliente(tenant.id, slug, cliente.id, planoId);
+  };
+
   return (
     <div className="max-w-lg">
       <h1 className="text-2xl font-semibold mb-6">Meu plano</h1>
@@ -112,10 +123,32 @@ export default async function ClienteMeuPlanoPage({
 
       <a
         href={`/barbearia/${slug}/cliente/pagamentos`}
-        className="text-sm text-neutral-900 hover:underline"
+        className="text-sm text-neutral-900 hover:underline block mb-6"
       >
         Ver histórico de pagamentos →
       </a>
+
+      {outrosPlanos.length > 1 && (
+        <div>
+          <p className="text-sm font-medium mb-3">Trocar de plano</p>
+          <div className="space-y-3">
+            {outrosPlanos.map((p) => (
+              <BotaoTrocarPlano
+                key={p.id}
+                planoId={p.id}
+                nomePlano={p.nome}
+                precoMensal={Number(p.precoMensal)}
+                ehPlanoAtual={p.id === assinatura.planoId}
+                trocarPlanoAction={trocarPlanoComContexto}
+              />
+            ))}
+          </div>
+          <p className="text-xs text-neutral-400 mt-2">
+            A troca vale a partir de agora, sem cobrança proporcional pelo
+            tempo restante do plano anterior.
+          </p>
+        </div>
+      )}
     </div>
   );
 }
